@@ -1,0 +1,14 @@
+{
+  "name": "o-orientador",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.60.0",
+    "vite": "^5.0.0"
+  }
+}

@@ -1,0 +1,30 @@
+@import url('./variables.css');
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0
+}
+
+
+
+body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh
+}
+
+button {
+    cursor: pointer;
+    font-family: inherit
+}
+
+input,
+select {
+    font-family: inherit
+}

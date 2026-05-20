@@ -1,0 +1,130 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  cpf          String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  incomes       Income[]
+  expenses      Expense[]
+  balances      Balance[]
+  rules         Rule[]
+  amountRules   AmountRule[]
+  categories    Category[]
+  aliases       Alias[]
+  refreshTokens RefreshToken[]
+}
+
+model Income {
+  id        String   @id @default(uuid())
+  userId    String
+  month     String
+  name      String
+  amount    Float
+  bank      String
+  dateStr   String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, month, bank])
+}
+
+model Expense {
+  id         String   @id @default(uuid())
+  userId     String
+  month      String
+  name       String
+  amount     Float
+  type       String   @default("variavel")
+  category   String?
+  sector     String   @default("gasto")
+  bank       String
+  isResgate  Boolean  @default(false)
+  isInternal Boolean  @default(false)
+  dateStr    String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, month, bank])
+  @@index([userId, sector])
+}
+
+model Balance {
+  id        String   @id @default(uuid())
+  userId    String
+  month     String
+  bank      String
+  value     Float
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month, bank])
+}
+
+model Rule {
+  id       String @id @default(uuid())
+  userId   String
+  memo     String
+  category String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, memo])
+}
+
+model AmountRule {
+  id             String @id @default(uuid())
+  userId         String
+  normalizedName String
+  amount         Float
+  category       String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, normalizedName, amount])
+}
+
+model Category {
+  id     String  @id @default(uuid())
+  userId String
+  key    String
+  label  String
+  color  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+}
+
+model Alias {
+  id             String @id @default(uuid())
+  userId         String
+  normalizedName String
+  alias          String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, normalizedName])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

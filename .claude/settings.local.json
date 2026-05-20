@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node test-caixa-pdf.mjs)",
+      "Bash(npm install *)",
+      "Bash(npx prisma *)",
+      "Bash(timeout 8 npm run dev)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3333/health)"
+    ]
+  }
+}
