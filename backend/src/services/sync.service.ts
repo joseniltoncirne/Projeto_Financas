@@ -52,25 +52,43 @@ function titleCase(s: string): string {
     .join(' ')
 }
 
+// Mascara CPF preservando o "miolo" pra identificação visual sem expor o doc inteiro.
+// "084.381.664-31" → "***.381.664-**"
+function maskCpf(value: string): string {
+  const digits = value.replace(/\D/g, '')
+  if (digits.length !== 11) return value
+  return `***.${digits.slice(3, 6)}.${digits.slice(6, 9)}-**`
+}
+
 // Constrói um nome mais legível para a transação aproveitando paymentData/merchant.
 // Para "PIX ENVIADO" sozinho ficamos com "PIX · Nome Do Destinatário".
 function enrichTransactionName(t: PluggyTransaction, isIncome: boolean): string {
   const desc = (t.description || '').trim()
+  const prefix = (t.operationType || t.paymentData?.paymentMethod || '').toUpperCase()
 
   // 1) merchant (PJ com CNPJ) tem prioridade — info mais confiável
   const merchantName = t.merchant?.businessName?.trim()
   if (merchantName) {
-    const prefix = (t.operationType || t.paymentData?.paymentMethod || '').toUpperCase()
     return prefix ? `${prefix} · ${titleCase(merchantName)}` : titleCase(merchantName)
   }
 
-  // 2) PIX com destinatário/pagador identificado
+  // 2) PIX com destinatário/pagador identificado pelo nome
   const counterparty = isIncome
     ? t.paymentData?.payer?.name
     : t.paymentData?.receiver?.name
   if (counterparty) {
-    const prefix = (t.operationType || t.paymentData?.paymentMethod || 'PIX').toUpperCase()
-    return `${prefix} · ${titleCase(counterparty.trim())}`
+    const tag = prefix || 'PIX'
+    return `${tag} · ${titleCase(counterparty.trim())}`
+  }
+
+  // 3) Sem nome, mas com documento (PIX pra PF onde o nome veio null):
+  //    usa CPF mascarado para diferenciar destinatários e permitir criação de regras
+  const doc = isIncome
+    ? t.paymentData?.payer?.documentNumber
+    : t.paymentData?.receiver?.documentNumber
+  if (doc?.value && doc.type === 'CPF') {
+    const tag = prefix || 'PIX'
+    return `${tag} · CPF ${maskCpf(doc.value)}`
   }
 
   return desc || 'Sem descrição'
