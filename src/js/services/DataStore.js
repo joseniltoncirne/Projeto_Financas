@@ -294,8 +294,11 @@ class DataStore {
     }
 
     static async bulkUpdateExpenseCategories(memoLower, newCat) {
+        // Exclui transações com 📌 Fixar valor — o pin é mais específico que a regra por memo
+        const amountRules = this._cache.amountRules || {}
+        const isPinned = e => !!amountRules[`${Classifier._normalizeKey(e.name)}::${e.amount.toFixed(2)}`]
         const toUpdate = this._cache.expenses.filter(
-            e => e.name.toLowerCase() === memoLower && e.category !== newCat
+            e => e.name.toLowerCase() === memoLower && e.category !== newCat && !isPinned(e)
         )
         await Promise.all(toUpdate.map(e => ApiClient.patch(`/api/expenses/${e.id}`, { category: newCat })))
         toUpdate.forEach(e => { e.category = newCat })

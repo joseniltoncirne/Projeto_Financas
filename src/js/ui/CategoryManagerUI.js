@@ -112,10 +112,15 @@ Object.assign(FinanceApp.prototype, {
         if (!expense) { this.showCategoryDetail(currentCat, bank || null); return }
 
         const memoLower = expense.name.toLowerCase()
+        // Exclui transações com 📌 Fixar valor — o pin é mais específico que a regra por memo,
+        // então não faz sentido oferecê-las no fluxo de "aplicar a todos com mesmo nome"
+        const amountRules = DataStore.getAmountRules() || {}
+        const isPinned = e => !!amountRules[`${Classifier._normalizeKey(e.name)}::${e.amount.toFixed(2)}`]
         const others = DataStore.load().expenses.filter(e =>
             String(e.id) !== String(id) &&
             e.name.toLowerCase() === memoLower &&
-            e.category !== newCat
+            e.category !== newCat &&
+            !isPinned(e)
         )
 
         try {
