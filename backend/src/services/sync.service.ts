@@ -119,16 +119,21 @@ export const SyncService = {
       const allMapped: MappedTransaction[] = []
       const accounts = await PluggyService.getAccounts(itemId)
 
-      // Se banco não foi identificado no momento da conexão, detecta pelo nome da conta
+      // Se banco não foi identificado no momento da conexão, tenta detectar:
+      // 1) pelo nome da conta, 2) pelo código bancário (COMPE) — útil pra OAuth do MeuPluggy
       let bank = conn.bank
       if (bank === 'generico') {
         const firstBank = accounts.find(a => a.type === 'BANK')
+        let detected = 'generico'
         if (firstBank?.name) {
-          const detected = PluggyService.mapBank(firstBank.name)
-          if (detected !== 'generico') {
-            bank = detected
-            await connectionRepository.update(itemId, { bank })
-          }
+          detected = PluggyService.mapBank(firstBank.name)
+        }
+        if (detected === 'generico' && firstBank?.bankData?.transferNumber) {
+          detected = PluggyService.mapBankFromCompeCode(firstBank.bankData.transferNumber)
+        }
+        if (detected !== 'generico') {
+          bank = detected
+          await connectionRepository.update(itemId, { bank })
         }
       }
 

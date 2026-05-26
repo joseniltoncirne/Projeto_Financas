@@ -12,6 +12,9 @@ export interface PluggyAccount {
   name: string
   balance: number
   currencyCode: string
+  bankData?: {
+    transferNumber?: string | null
+  } | null
 }
 
 export interface PluggyTransaction {
@@ -158,5 +161,29 @@ export const PluggyService = {
     if (name.includes('c6')) return 'c6'
     if (name.includes('xp')) return 'xp'
     return 'generico'
+  },
+
+  // Mapeamento por código bancário (COMPE) — usado quando connector.name não ajuda
+  // (ex: conexões vindas via OAuth do Meu Pluggy, que vêm como connector 'MeuPluggy')
+  mapBankFromCompeCode(transferNumber: string | null | undefined): string {
+    if (!transferNumber) return 'generico'
+    const code = transferNumber.match(/^(\d{3})/)?.[1]
+    if (!code) return 'generico'
+    const map: Record<string, string> = {
+      '260': 'nubank',
+      '077': 'inter',
+      '104': 'caixa',
+      '341': 'itau',
+      '237': 'bradesco',
+      '033': 'santander',
+      '001': 'bb',
+      '197': 'stone',
+      '212': 'original',
+      '323': 'mercadopago',
+      '380': 'picpay',
+      '336': 'c6',
+      '102': 'xp',
+    }
+    return map[code] ?? 'generico'
   },
 }
