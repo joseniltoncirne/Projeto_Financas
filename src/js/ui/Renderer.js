@@ -4,6 +4,12 @@ class Renderer {
         return Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     }
 
+    static _catLabel(cat) {
+        if (!cat) return ''
+        const custom = DataStore.getCustomCategories()
+        return CAT_LABELS[cat] || custom[cat]?.label || cat
+    }
+
     // Retorna o apelido do destino se existir, senão retorna o nome original
     static aliasName(rawName) {
         const key = Classifier._normalizeKey(rawName)
@@ -29,7 +35,7 @@ class Renderer {
             const meta = BANK_META[b] || BANK_META.generico
             const isActive = b === currentBank
             const style = isActive
-                ? `background:${meta.color};color:#fff;border-color:${meta.color}`
+                ? `background:${meta.bg};color:${meta.color};border-color:${meta.color};font-weight:700`
                 : `color:${meta.color};border-color:${meta.color}`
             return `<button class="bank-tab ${b} ${isActive ? 'active' : ''}" style="display:inline-flex;align-items:center;gap:5px;${style}" onclick="app.switchBank('${b}')">${meta.logo} ${meta.label}</button>`
         }).join('')
@@ -38,7 +44,8 @@ class Renderer {
 
     static _summaryForBank(month, bank) {
         const incomes = DataStore.getIncomesByMonth(month, bank)
-        const expenses = DataStore.getExpensesByMonth(month, bank)
+        const allExpenses = DataStore.getExpensesByMonth(month, bank)
+        const expenses = allExpenses.filter(e => !(e.externalId && e.externalId.startsWith('fixed:')))
         const renda = incomes.reduce((s, i) => s + i.amount, 0)
         const gasto = expenses
             .filter(e => Classifier.sectorOf(e) === 'gasto' && e.sector !== 'entre_contas')
@@ -130,6 +137,7 @@ class Renderer {
         <div class="overview-month-nav">
           <button class="month-btn" onclick="app.shiftMonth(-1)">‹</button>
           <button class="month-btn" onclick="app.shiftMonth(1)">›</button>
+          <button class="overview-contas-btn" onclick="app.switchTab('analise')">📒 Minhas Contas<span class="contas-badge" id="contas-badge" style="display:none"></span></button>
         </div>
       </div>
       ${hasAnyMovement ? `
@@ -138,45 +146,128 @@ class Renderer {
         <span style="font-size:15px;font-weight:700;color:var(--amber-text)">${this.fmt(total.emConta)}</span>
         ${emContaRows.length > 1 ? `<span style="margin-left:auto;display:flex;gap:.6rem;flex-wrap:wrap">` + emContaRows.map(r => { const m = BANK_META[r.bank] || BANK_META.generico; return `<span style="font-size:11px;color:var(--amber-text);white-space:nowrap">${m.icon} ${m.label}: <strong>${this.fmt(r.emConta)}</strong></span>` }).join('') + `</span>` : ''}
       </div>` : ''}
+      ${(() => {
+        const data = DataStore.load()
+        const [y, mo] = month.split('-').map(Number)
+        const mkMonth = (offset) => {
+          let m = mo - offset, yr = y
+          if (m <= 0) { m += 12; yr -= 1 }
+          return `${yr}-${String(m).padStart(2, '0')}`
+        }
+        const displayMonths = [mkMonth(2), mkMonth(1), month]
+        const sum = (arr) => arr.reduce((s, e) => s + e.amount, 0)
+        const cols = displayMonths.map(m => {
+          const exp    = data.expenses.filter(e => e.month === m)
+          const renda  = sum(data.incomes.filter(i => i.month === m))
+          const gasto  = sum(exp.filter(e => Classifier.sectorOf(e) === 'gasto' && e.sector !== 'entre_contas'))
+          const aplic  = sum(exp.filter(e => Classifier.sectorOf(e) === 'investido' && !e.resgate))
+          const resg   = sum(exp.filter(e => Classifier.sectorOf(e) === 'investido' && e.resgate))
+          const invest = Math.max(0, aplic - resg)
+          const [, mm] = m.split('-')
+          return { key: m, label: MONTH_SHORT[parseInt(mm) - 1], renda, gasto, invest, isCurrent: m === month }
+        })
+        if (cols.every(c => c.renda === 0 && c.gasto === 0)) return ''
+        const mkCol = (c) => {
+          const border = c.isCurrent ? 'border:1.5px solid var(--border);background:var(--surface)' : 'border:1px solid var(--border);background:transparent;opacity:.85'
+          const badge = c.isCurrent ? `<span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);opacity:.7">atual</span>` : ''
+          const row = (icon, val, color) => `
+            <div style="margin-top:8px">
+              <div style="font-size:10px;color:var(--text3);margin-bottom:1px">${icon}</div>
+              <div style="font-size:12px;font-weight:700;color:${color}">${val > 0 ? this.fmt(val) : '<span style="color:var(--text3);font-weight:400">—</span>'}</div>
+            </div>`
+          return `<div style="flex:1;border-radius:10px;padding:10px 8px;${border}">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:13px;font-weight:700;color:var(--text)">${c.label}</span>
+              ${badge}
+            </div>
+            ${row('Renda',     c.renda,  'var(--green-text)')}
+            ${row('Gasto',     c.gasto,  'var(--red-text)')}
+            ${row('Investido', c.invest, 'var(--purple-text)')}
+          </div>`
+        }
+        const open = localStorage.getItem('evolution_open') === '1'
+        return `<div style="background:var(--surface2);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:.75rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none" onclick="const b=document.getElementById('evolution-body');const open=b.style.display==='none';b.style.display=open?'flex':'none';this.querySelector('.evo-arrow').style.transform=open?'rotate(180deg)':'rotate(0deg)';localStorage.setItem('evolution_open',open?'1':'0')">
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">Evolução em 3 meses</span>
+            <span class="evo-arrow" style="font-size:12px;color:var(--text3);transition:transform .2s;transform:rotate(${open ? '180' : '0'}deg)">▾</span>
+          </div>
+          <div id="evolution-body" style="display:${open ? 'flex' : 'none'};gap:8px;margin-top:.75rem">${cols.map(mkCol).join('')}</div>
+        </div>`
+      })()}
       <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:.75rem">
         ${mkDonutSection({ id: 'overviewDonutGasto',  items: gastoRows,  valueKey: 'gasto',     title: '💳 Gasto total',     accentColor: 'var(--red-text)',    bgColor: 'var(--red-bg)',    borderColor: 'var(--red)',    emptyMsg: 'Nenhum gasto registrado' })}
         ${mkDonutSection({ id: 'overviewDonutInvest', items: investRows, valueKey: 'investido', title: '📈 Investido total', accentColor: 'var(--purple-text)', bgColor: 'var(--purple-bg)', borderColor: 'var(--purple)', emptyMsg: 'Nenhum investimento registrado' })}
       </div>
       ${(() => {
-          const allGastos = banks.filter(b => b !== 'entre_contas').flatMap(b =>
-              DataStore.getExpensesByMonth(month, b).filter(e => Classifier.sectorOf(e) === 'gasto')
-          )
-          const catTotals = {}
-          allGastos.forEach(e => { catTotals[e.category || 'outros'] = (catTotals[e.category || 'outros'] || 0) + e.amount })
-          const catList = Object.entries(catTotals).sort((a, b) => b[1] - a[1])
-          if (!catList.length) return ''
-          const catRows = catList.map(([cat, val]) => {
+          const allGastos = DataStore.getExpensesByMonth(month, null)
+              .filter(e => Classifier.sectorOf(e) === 'gasto' && e.sector !== 'entre_contas')
+          const fixoTotals = {}, varTotals = {}
+          allGastos.forEach(e => {
+              const key = e.category || 'outros'
+              const target = e.type === 'fixo' ? fixoTotals : varTotals
+              target[key] = (target[key] || 0) + e.amount
+          })
+          const hasAny = Object.keys(fixoTotals).length > 0 || Object.keys(varTotals).length > 0
+          if (!hasAny) return ''
+          const mkRow = ([cat, val], isFixed = false) => {
               const pct = total.gasto > 0 ? Math.round(val / total.gasto * 100) : 0
               const color = CAT_COLORS[cat] || '#888'
+              const customCat = DataStore.getCustomCategories()[cat]
+              const budget = customCat?.budget ?? null
+              const budgetPct = budget ? Math.min(Math.round(val / budget * 100), 100) : 0
+              const budgetOver = budget && val > budget
+              const budgetNear = budget && !budgetOver && val / budget >= 0.8
+              const budgetBarColor = budgetOver ? '#ef4444' : budgetNear ? '#f97316' : '#22c55e'
+              const budgetLabel = budget
+                ? `<span style="font-size:10px;color:${budgetOver ? '#ef4444' : budgetNear ? '#f97316' : 'var(--text3)'};">
+                    ${budgetOver ? '⚠ ' : budgetNear ? '⚡ ' : ''}${this.fmt(val)} / ${this.fmt(budget)}
+                  </span>`
+                : `<span style="font-size:10px;color:var(--text3);font-weight:400">${pct}%</span>`
+              const metaBtn = isFixed ? '' : `<button onclick="event.stopPropagation();app.editCategoryBudget('${cat}')" title="Definir meta de gasto" style="flex-shrink:0;padding:2px 7px;border-radius:6px;border:1px solid ${budget ? budgetBarColor + '55' : 'var(--border)'};background:${budget ? budgetBarColor + '18' : 'transparent'};color:${budget ? budgetBarColor : 'var(--text3)'};font-size:11px;font-weight:600;cursor:pointer;line-height:1.6;transition:all .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">🎯</button>`
               return `<div style="margin-bottom:10px;cursor:pointer;border-radius:6px;padding:4px 6px;margin-left:-6px;margin-right:-6px;transition:background .15s" onclick="app.showCategoryDetail('${cat}')" onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="this.style.background='transparent'">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
                   <span style="display:flex;align-items:center;gap:6px">
                     <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>
-                    <span style="font-size:12px;color:var(--text2)">${CAT_LABELS[cat] || cat}</span>
+                    <span style="font-size:12px;color:var(--text2)">${this._catLabel(cat)}</span>
                     <button class="cat-rename-btn" onclick="event.stopPropagation();app.editCategoryName('${cat}','')" title="Renomear categoria"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
                   </span>
-                  <span style="display:flex;align-items:center;gap:6px">
-                    <span style="font-size:12px;font-weight:600">${this.fmt(val)} <span style="font-size:10px;color:var(--text3);font-weight:400">${pct}%</span></span>
+                  <span style="display:flex;align-items:center;gap:5px">
+                    <span style="font-size:12px;font-weight:600">${budget ? '' : this.fmt(val) + ' '} ${budgetLabel}</span>
+                    ${metaBtn}
                     <span style="font-size:11px;color:var(--text3)">▸</span>
                   </span>
                 </div>
+                ${budget ? `
+                <div style="height:5px;border-radius:3px;background:rgba(0,0,0,0.07);margin-bottom:2px">
+                  <div style="height:100%;width:${budgetPct}%;background:${budgetBarColor};border-radius:3px;transition:width .3s"></div>
+                </div>` : `
                 <div style="height:3px;border-radius:2px;background:rgba(0,0,0,0.07)">
                   <div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div>
-                </div>
+                </div>`}
               </div>`
-          }).join('')
-          return `<div style="background:var(--surface2);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:.75rem">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">📊 Gastos por categoria <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0">· clique para ver detalhes</span></div>
-            ${catRows}
-          </div>`
+          }
+          const mkCard = (title, entries, isFixed = false) => `
+            <div style="background:var(--surface2);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:.75rem">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">${title} <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0">· clique para ver detalhes</span></div>
+              ${entries.sort((a,b) => b[1]-a[1]).map(e => mkRow(e, isFixed)).join('')}
+            </div>`
+          let result = ''
+          if (Object.keys(fixoTotals).length > 0) result += mkCard('📌 Gastos Fixos', Object.entries(fixoTotals), true)
+          if (Object.keys(varTotals).length > 0) result += mkCard('🔀 Gastos Variáveis', Object.entries(varTotals), false)
+          return result
       })()}
       ` : `<div class="empty" style="padding:1.25rem 1rem"><span class="empty-icon">📊</span>Nenhum dado consolidado para ${this.monthLabel(month)}.</div>`}
+      ${this._recurrenceSuggestionsHtml()}
     </div>`
+    }
+
+    // Cores dos gráficos adaptam ao tema atual (light/dark)
+    static _chartColors() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+        return {
+            text: isDark ? '#B8B8D0' : '#888',
+            grid: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)',
+        }
     }
 
     // Escapa caracteres HTML para evitar XSS em dados do usuário
@@ -187,6 +278,24 @@ class Renderer {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;')
+    }
+
+    // Escapa para uso DENTRO de uma string JS que está DENTRO de um atributo HTML.
+    // Ex: onclick="app.foo('${Renderer.jsAttr(userData)}')"
+    // Sem isso, aspas simples no input quebram a string JS (esc() apenas não basta
+    // porque o browser decodifica &#39; de volta para ' antes do JS parsear).
+    static jsAttr(str) {
+        const js = String(str ?? '')
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/\r/g, '\\r')
+            .replace(/\n/g, '\\n')
+            .replace(/\u2028/g, '\\u2028')
+            .replace(/\u2029/g, '\\u2029')
+            .replace(/</g, '\\x3c')
+        return js
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
     }
 
     static renderSummary(month, bank) {
@@ -250,29 +359,83 @@ class Renderer {
             html += `<div class="card"><div class="empty"><span class="empty-icon">◈</span>Nenhum dado para este mês.<br>Adicione sua renda e seus gastos nas abas acima.</div></div>`
         }
 
-        // Gastos por categoria
-        const cats = {}
-        expenses.filter(e => Classifier.sectorOf(e) === 'gasto').forEach(e => { cats[e.category] = (cats[e.category] || 0) + e.amount })
-        const catList = Object.entries(cats).sort((a, b) => b[1] - a[1])
-        if (catList.length > 0) {
-            html += `<div class="card"><div class="card-title" style="margin-bottom:.75rem">Gastos por categoria <span style="font-size:11px;color:var(--text3);font-weight:400">· clique para ver detalhes</span></div>`
-            catList.forEach(([cat, val]) => {
-                const p = totalGasto > 0 ? Math.round(val / totalGasto * 100) : 0
+        // Gastos por categoria — separado em Fixos e Variáveis
+        const gastoExpenses = expenses.filter(e => Classifier.sectorOf(e) === 'gasto')
+        const catsFixo = {}, catsVar = {}
+        gastoExpenses.forEach(e => {
+            const target = e.type === 'fixo' ? catsFixo : catsVar
+            target[e.category] = (target[e.category] || 0) + e.amount
+        })
+        const hasCats = Object.keys(catsFixo).length > 0 || Object.keys(catsVar).length > 0
+        if (hasCats) {
+            const mkRow = ([cat, val], isFixed = false) => {
+                const pct = totalGasto > 0 ? Math.round(val / totalGasto * 100) : 0
                 const color = CAT_COLORS[cat] || '#888'
-                html += `<div class="cat-row" style="cursor:pointer" onclick="app.showCategoryDetail('${cat}','${bank}')">
-          <div class="cat-dot" style="background:${color}"></div>
-          <span class="cat-name">${CAT_LABELS[cat] || cat}</span>
-          <button class="cat-rename-btn" onclick="event.stopPropagation();app.editCategoryName('${cat}','${bank||''}')" title="Renomear categoria"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
-          <div class="cat-bar-wrap"><div class="cat-bar-fill" style="width:${p}%;background:${color}"></div></div>
-          <span class="cat-val">${this.fmt(val)}</span>
-          <span class="cat-pct">${p}%</span>
-          <span style="font-size:11px;color:var(--text3);margin-left:4px">▸</span>
-        </div>`
-            })
-            html += `</div>`
+                const customCat = DataStore.getCustomCategories()[cat]
+                const budget = customCat?.budget ?? null
+                const budgetPct = budget ? Math.min(Math.round(val / budget * 100), 100) : 0
+                const budgetOver = budget && val > budget
+                const budgetNear = budget && !budgetOver && val / budget >= 0.8
+                const budgetBarColor = budgetOver ? '#ef4444' : budgetNear ? '#f97316' : '#22c55e'
+                const budgetLabel = budget
+                  ? `<span style="font-size:10px;color:${budgetOver ? '#ef4444' : budgetNear ? '#f97316' : 'var(--text3)'};">${budgetOver ? '⚠ ' : budgetNear ? '⚡ ' : ''}${this.fmt(val)} / ${this.fmt(budget)}</span>`
+                  : `<span style="font-size:10px;color:var(--text3);font-weight:400">${pct}%</span>`
+                const metaBtn = isFixed ? '' : `<button onclick="event.stopPropagation();app.editCategoryBudget('${cat}')" title="Definir meta de gasto" style="flex-shrink:0;padding:2px 7px;border-radius:6px;border:1px solid ${budget ? budgetBarColor + '55' : 'var(--border)'};background:${budget ? budgetBarColor + '18' : 'transparent'};color:${budget ? budgetBarColor : 'var(--text3)'};font-size:11px;font-weight:600;cursor:pointer;line-height:1.6;transition:all .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">🎯</button>`
+                return `<div style="margin-bottom:10px;cursor:pointer;border-radius:6px;padding:4px 6px;margin-left:-6px;margin-right:-6px;transition:background .15s" onclick="app.showCategoryDetail('${cat}','${bank}')" onmouseover="this.style.background='rgba(0,0,0,0.04)'" onmouseout="this.style.background='transparent'">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                    <span style="display:flex;align-items:center;gap:6px">
+                      <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>
+                      <span style="font-size:12px;color:var(--text2)">${this._catLabel(cat)}</span>
+                      <button class="cat-rename-btn" onclick="event.stopPropagation();app.editCategoryName('${cat}','${bank||''}')" title="Renomear categoria"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
+                    </span>
+                    <span style="display:flex;align-items:center;gap:5px">
+                      <span style="font-size:12px;font-weight:600">${budget ? '' : this.fmt(val) + ' '} ${budgetLabel}</span>
+                      ${metaBtn}
+                      <span style="font-size:11px;color:var(--text3)">▸</span>
+                    </span>
+                  </div>
+                  ${budget ? `
+                  <div style="height:5px;border-radius:3px;background:rgba(0,0,0,0.07);margin-bottom:2px">
+                    <div style="height:100%;width:${budgetPct}%;background:${budgetBarColor};border-radius:3px;transition:width .3s"></div>
+                  </div>` : `
+                  <div style="height:3px;border-radius:2px;background:rgba(0,0,0,0.07)">
+                    <div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div>
+                  </div>`}
+                </div>`
+            }
+            const mkCard = (title, map, isFixed = false) => `
+                <div style="background:var(--surface2);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:.75rem">
+                  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">${title} <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0">· clique para ver detalhes</span></div>
+                  ${Object.entries(map).sort((a, b) => b[1] - a[1]).map(e => mkRow(e, isFixed)).join('')}
+                </div>`
+            if (Object.keys(catsFixo).length > 0) html += mkCard('📌 Gastos Fixos', catsFixo, true)
+            if (Object.keys(catsVar).length > 0) html += mkCard('🔀 Gastos Variáveis', catsVar, false)
         }
 
         document.getElementById('sec-resumo').innerHTML = html
+    }
+
+    static _recurrenceSuggestionsHtml() {
+        if (typeof RecurrenceDetector === 'undefined') return ''
+        const suggestions = RecurrenceDetector.detect()
+        if (!suggestions.length) return ''
+        const rows = suggestions.map(s => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)">
+                <div style="flex:1;min-width:0;margin-right:10px">
+                    <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${this.esc(s.name)}</div>
+                    <div style="font-size:11px;color:var(--text3);margin-top:1px">~${this.fmt(s.amount)} · ${s.months.length} meses seguidos</div>
+                </div>
+                <div style="display:flex;gap:6px;flex-shrink:0">
+                    <button class="btn-secondary" style="font-size:11px;padding:4px 8px" onclick="app._dismissRecurrenceSuggestion('${this.jsAttr(s.key)}')">Ignorar</button>
+                    <button class="btn-primary" style="font-size:11px;padding:4px 8px" onclick="app._addRecurrenceSuggestion('${this.jsAttr(s.name)}',${s.amount.toFixed(2)})">+ Fixo</button>
+                </div>
+            </div>`).join('')
+        return `
+            <div style="background:var(--surface2);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:.75rem">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:2px">💡 Possíveis contas fixas</div>
+                <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Esses gastos aparecem todo mês com valor similar.</div>
+                ${rows}
+            </div>`
     }
 
     static renderIncomes(month, bank, showForm) {
@@ -316,8 +479,8 @@ class Renderer {
         const emConta = all.filter(e => Classifier.sectorOf(e) === 'em_conta')
 
         const formHtml = showForm ? `<div class="form-row">
-      <input class="inp" id="exp-name" placeholder="Descrição..." style="min-width:120px">
-      <input class="inp" id="exp-amount" type="number" min="0.01" step="0.01" placeholder="Valor (R$)" style="max-width:135px">
+      <input class="inp" id="exp-name" placeholder="Descrição..." style="min-width:120px" oninput="app._suggestExpenseCategory()">
+      <input class="inp" id="exp-amount" type="number" min="0.01" step="0.01" placeholder="Valor (R$)" style="max-width:135px" oninput="app._suggestExpenseCategory()">
       <select class="sel" id="exp-sector">
         <option value="gasto">💳 Gasto</option>
         <option value="investido">📈 Investido</option>
@@ -327,7 +490,7 @@ class Renderer {
         <option value="variavel">Variável</option>
         <option value="fixo">Fixo</option>
       </select>
-      <select class="sel" id="exp-cat">
+      <select class="sel" id="exp-cat" onchange="this.dataset.userTouched='1'">
         ${Object.entries(CAT_LABELS).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
       </select>
       <button class="save-btn" onclick="app.addExpense()">Salvar</button>
@@ -339,12 +502,21 @@ class Renderer {
             const sub = list.reduce((s, e) => s + e.amount, 0)
             const icon = sectorKey === 'gasto' ? '💳' : sectorKey === 'investido' ? '📈' : '🔄'
             let h = `<div class="group-label" style="color:${sc.text}">${icon} ${SECTOR_LABELS[sectorKey]}</div>`
-            list.forEach(e => {
+            const sorted = [...list].sort((a, b) => {
+                if (!a.dateStr && !b.dateStr) return 0
+                if (!a.dateStr) return 1
+                if (!b.dateStr) return -1
+                const toISO = d => d.split('/').reverse().join('-')
+                return toISO(b.dateStr).localeCompare(toISO(a.dateStr))
+            })
+            sorted.forEach(e => {
                 const isFixo = e.type === 'fixo'
+                const datePart = e.dateStr ? e.dateStr.slice(0, 5) : ''
+                const subText = [datePart, this._catLabel(e.category)].filter(Boolean).join(' · ')
                 h += `<div class="row">
           <div>
 <div class="row-name">${this.esc(this.aliasName(e.name))}</div>
-<div class="row-sub">${this.esc(CAT_LABELS[e.category] || e.category || '')}</div>
+<div class="row-sub">${this.esc(subText)}</div>
           </div>
           <div class="row-right">
 ${sectorKey === 'gasto' ? `<span class="badge" style="background:${isFixo ? 'var(--blue-bg)' : 'var(--amber-bg)'};color:${isFixo ? 'var(--blue-text)' : 'var(--amber-text)'}">${isFixo ? 'Fixo' : 'Variável'}</span>` : ''}
@@ -402,7 +574,7 @@ ${sectorKey === 'gasto' ? `<span class="badge" style="background:${isFixo ? 'var
         if (pieData.length > 0) {
             const legend = pieData.map(([cat, val], i) => `<div class="cat-row" style="margin-bottom:8px">
         <div class="cat-dot" style="background:${PIE_COLORS[i % 7]}"></div>
-        <span class="cat-name">${CAT_LABELS[cat] || cat}</span>
+        <span class="cat-name">${this._catLabel(cat)}</span>
         <span class="cat-val">${this.fmt(val)}</span>
         <span class="cat-pct">${gasto > 0 ? Math.round(val / gasto * 100) : 0}%</span>
       </div>`).join('')
@@ -474,13 +646,16 @@ ${sectorKey === 'gasto' ? `<span class="badge" style="background:${isFixo ? 'var
                         { label: 'Investido', data: investData, backgroundColor: '#6040c8', borderRadius: 4, maxBarThickness: 28 },
                     ]
                 },
-                options: {
-                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#888', font: { size: 12 } } },
-                        y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#888', font: { size: 11 }, callback: v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v }, border: { display: false } }
+                options: (() => {
+                    const c = this._chartColors()
+                    return {
+                        responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: c.text, font: { size: 12 } } },
+                            y: { grid: { color: c.grid }, ticks: { color: c.text, font: { size: 11 }, callback: v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v }, border: { display: false } }
+                        }
                     }
-                }
+                })()
             })
         }
 
@@ -493,8 +668,8 @@ ${sectorKey === 'gasto' ? `<span class="badge" style="background:${isFixo ? 'var
             pieChart = new Chart(pieEl, {
                 type: 'doughnut',
                 data: {
-                    labels: pieEntries.map(([c]) => CAT_LABELS[c] || c),
-                    datasets: [{ data: pieEntries.map(([, v]) => Math.round(v * 100) / 100), backgroundColor: PIE_COLORS.slice(0, pieEntries.length), borderWidth: 0 }]
+                    labels: pieEntries.map(([c]) => this._catLabel(c)),
+                    datasets: [{ data: pieEntries.map(([, v]) => Math.round(v * 100) / 100), backgroundColor: (BANK_PIE_COLORS[bank] || PIE_COLORS).slice(0, pieEntries.length), borderWidth: 0 }]
                 },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
             })

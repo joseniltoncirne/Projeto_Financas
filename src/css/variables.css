@@ -27,5 +27,49 @@
     --gold-bg: #FBF4E0;
     --r: 12px;
     --rs: 7px;
-    --shadow: 0 2px 8px rgba(28, 28, 46, 0.10)
+    --shadow: 0 2px 8px rgba(28, 28, 46, 0.10);
+    /* hover/active sutis baseados em opacidade — adaptam pro dark */
+    --hover-tint: rgba(0, 0, 0, 0.04);
+    --hover-tint-strong: rgba(0, 0, 0, 0.07);
+}
+
+:root[data-theme="dark"] {
+    --bg: #15151F;
+    --surface: #1F1F2E;
+    --surface2: #2A2A3D;
+    --border: rgba(255, 255, 255, 0.10);
+    --border-strong: rgba(255, 255, 255, 0.22);
+    --text: #F0F0F5;
+    --text2: #B8B8D0;
+    --text3: #80809A;
+    --green: #22C58A;
+    --green-bg: #0D2F23;
+    --green-text: #4ADE80;
+    --amber: #EAB94C;
+    --amber-bg: #3D2E10;
+    --amber-text: #FBBF24;
+    --red: #F46A3D;
+    --red-bg: #3D1A10;
+    --red-text: #FB7D52;
+    --blue: #5599E5;
+    --blue-bg: #112038;
+    --blue-text: #93C5FD;
+    --purple: #7C5FFF;
+    --purple-bg: #1F1A38;
+    --purple-text: #A78BFA;
+    --primary: #F0F0F5;
+    --gold: #EAB94C;
+    --gold-bg: #3D2E10;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --hover-tint: rgba(255, 255, 255, 0.05);
+    --hover-tint-strong: rgba(255, 255, 255, 0.09);
+}
+
+/* Transição suave ao trocar de tema */
+html {
+    color-scheme: light;
+    transition: background-color .2s, color .2s;
+}
+html[data-theme="dark"] {
+    color-scheme: dark;
 }

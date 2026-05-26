@@ -33,7 +33,7 @@ class AuthService {
         const clean = cpf.replace(/\D/g, '')
         if (!this.validateName(name)) return { ok: false, error: 'Informe nome e sobrenome completos (sem abreviações)' }
         if (!this.validateCPF(cpf)) return { ok: false, error: 'CPF inválido' }
-        if (!password || password.length < 6) return { ok: false, error: 'A senha deve ter pelo menos 6 caracteres' }
+        if (!password || password.length < 10) return { ok: false, error: 'A senha deve ter pelo menos 10 caracteres' }
         try {
             const data = await ApiClient.post('/auth/register', { name, cpf: clean, password })
             ApiClient.setTokens(data.accessToken, data.refreshToken)

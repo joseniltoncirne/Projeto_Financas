@@ -43,6 +43,8 @@ export const authService = {
   },
 
   async saveRefreshToken(userId: string, token: string, expiresIn: string) {
+    // Limpa tokens expirados deste usuário (mantém os ativos para multi-dispositivo)
+    await refreshTokenRepository.deleteExpiredForUser(userId).catch(() => null)
     const ms = parseExpiry(expiresIn)
     const expiresAt = new Date(Date.now() + ms)
     await refreshTokenRepository.create({ userId, token, expiresAt })

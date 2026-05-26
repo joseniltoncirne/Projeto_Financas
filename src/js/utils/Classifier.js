@@ -102,13 +102,37 @@ class Classifier {
         return n.replace(/\./g, ' ').replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim()
     }
 
+    static _fuzzyNormalize(s) {
+        return s
+            .normalize('NFD').replace(/[̀-ͯ]/g, '')
+            .replace(/\b\d{1,2}\/\d{2,4}\b/g, ' ')
+            .replace(/\b\d+\b/g, ' ')
+            .replace(/[^\w\s]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+    }
+
+    static _fuzzyMatch(ruleMemo, memo, threshold = 0.75) {
+        const rn = this._fuzzyNormalize(ruleMemo)
+        const mn = this._fuzzyNormalize(memo)
+        if (!rn || !mn) return false
+        if (mn.includes(rn) || rn.includes(mn)) return true
+        const rTokens = rn.split(' ').filter(t => t.length > 1)
+        if (!rTokens.length) return false
+        const mWords = new Set(mn.split(' '))
+        return rTokens.filter(t => mWords.has(t)).length / rTokens.length >= threshold
+    }
+
     static _categoryWithRules(memo, rules, amountRules = null, absAmount = undefined) {
-        const m = memo.toLowerCase()
+        const m = memo.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
         if (amountRules && absAmount !== undefined) {
             const key = `${this._normalizeKey(memo)}::${Number(absAmount).toFixed(2)}`
             if (amountRules[key]) return amountRules[key]
         }
         if (rules[m]) return rules[m]
+        for (const [ruleMemo, cat] of Object.entries(rules)) {
+            if (this._fuzzyMatch(ruleMemo, m)) return cat
+        }
         for (const [cat, keywords] of Object.entries(this.AUTO_CATS)) {
             if (keywords.some(k => m.includes(k))) return cat
         }

@@ -12,6 +12,10 @@ export const ruleRepository = {
       update: { category },
     })
   },
+
+  delete(userId: string, memo: string) {
+    return prisma.rule.deleteMany({ where: { userId, memo } })
+  },
 }
 
 export const amountRuleRepository = {

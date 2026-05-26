@@ -28,6 +28,10 @@ class DataStore {
             categories: this._buildCategoriesMap(categories),
             aliases: this._buildAliasMap(aliases),
         }
+        // Verifica metas de gasto após cada carregamento
+        if (typeof BudgetNotifier !== 'undefined' && typeof app !== 'undefined') {
+            BudgetNotifier.check(app.currentMonth).catch(err => console.error('[BudgetNotifier] Erro ao checar metas:', err))
+        }
     }
 
     // ── Normalization ─────────────────────────────────────────────────────────────
@@ -41,6 +45,7 @@ class DataStore {
             id: e.id, month: e.month, name: e.name, amount: e.amount,
             type: e.type, category: e.category || null, sector: e.sector, bank: e.bank,
             resgate: e.isResgate, internal: e.isInternal, dateStr: e.dateStr || null,
+            externalId: e.externalId || null,
         }
     }
 
@@ -52,7 +57,10 @@ class DataStore {
 
     static _buildRulesMap(rules) {
         const map = {}
-        rules.forEach(r => { map[r.memo] = r.category })
+        rules.forEach(r => {
+            const key = r.memo.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+            map[key] = r.category
+        })
         return map
     }
 
@@ -64,7 +72,7 @@ class DataStore {
 
     static _buildCategoriesMap(categories) {
         const map = {}
-        categories.forEach(c => { map[c.key] = { label: c.label, color: c.color } })
+        categories.forEach(c => { map[c.key] = { label: c.label, color: c.color, isFixed: !!c.isFixed, budget: c.budget ?? null } })
         return map
     }
 
@@ -94,7 +102,7 @@ class DataStore {
     }
 
     static getExpensesByMonth(month, bank) {
-        return this._cache.expenses.filter(e => e.month === month && e.bank === bank)
+        return this._cache.expenses.filter(e => e.month === month && (bank == null || e.bank === bank))
     }
 
     static getEntreContasByMonth(month) {
@@ -123,6 +131,18 @@ class DataStore {
         return [...banks].sort((a, b) => {
             const ia = order.indexOf(a), ib = order.indexOf(b)
             return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+        })
+    }
+
+    // Igual a getBanksWithData, mas exclui bancos que só têm placeholders de contas fixas
+    static getBanksForNav() {
+        const allBanks = this.getBanksWithData()
+        return allBanks.filter(bank => {
+            const hasIncome = this._cache.incomes.some(i => i.bank === bank)
+            const hasRealExpense = this._cache.expenses.some(e =>
+                e.bank === bank && !(e.externalId && e.externalId.startsWith('fixed:'))
+            )
+            return hasIncome || hasRealExpense
         })
     }
 
@@ -209,6 +229,12 @@ class DataStore {
         this._cache.rules[memo.toLowerCase()] = category
     }
 
+    static async removeRule(memo) {
+        const m = memo.toLowerCase()
+        await ApiClient.delete(`/api/rules?memo=${encodeURIComponent(m)}`)
+        if (this._cache.rules) delete this._cache.rules[m]
+    }
+
     static async setAmountRule(normalizedName, amount, category) {
         await ApiClient.put('/api/amount-rules', { normalizedName, amount: Number(amount), category })
         if (!this._cache.amountRules) this._cache.amountRules = {}
@@ -230,7 +256,8 @@ class DataStore {
             } else throw e
         }
         if (!this._cache.categories) this._cache.categories = {}
-        this._cache.categories[key] = { label, color: color || null }
+        const existing = this._cache.categories[key]
+        this._cache.categories[key] = { label, color: color || null, isFixed: (existing || {}).isFixed || false }
     }
 
     static async renameCategory(key, newLabel) {
@@ -238,12 +265,20 @@ class DataStore {
         const existing = this._cache.categories[key]
         const color = (existing || {}).color || (typeof CAT_COLORS !== 'undefined' ? CAT_COLORS[key] : null) || '#888'
 
-        // Update cache immediately so sync callers see the new label
-        this._cache.categories[key] = { label: newLabel, color }
+        // Update cache immediately preserving all existing fields
+        this._cache.categories[key] = { label: newLabel, color, isFixed: (existing || {}).isFixed || false }
 
         // Sync to API
         if (existing) {
-            await ApiClient.patch(`/api/categories/${key}`, { label: newLabel })
+            await ApiClient.patch(`/api/categories/${key}`, { label: newLabel }).catch(async e => {
+                if (e.status === 404) {
+                    // Cache estava desatualizado — categoria não existe no banco, criar
+                    await ApiClient.post('/api/categories', { key, label: newLabel, color }).catch(async e2 => {
+                        if (e2.status === 409) await ApiClient.patch(`/api/categories/${key}`, { label: newLabel })
+                        else throw e2
+                    })
+                } else throw e
+            })
         } else {
             await ApiClient.post('/api/categories', { key, label: newLabel, color }).catch(async e => {
                 if (e.status === 409) await ApiClient.patch(`/api/categories/${key}`, { label: newLabel })
@@ -301,6 +336,30 @@ class DataStore {
         // Reload full cache since import may have created many records
         await this._loadAll()
         return result
+    }
+
+    // ─── Conexões bancárias (Pluggy) ────────────────────────────────────────
+
+    static async getConnections() {
+        return ApiClient.get('/api/connections')
+    }
+
+    static async getConnectToken() {
+        return ApiClient.post('/api/connections/token', {})
+    }
+
+    static async saveConnection(itemId, connectorName) {
+        return ApiClient.post('/api/connections', { itemId, connectorName: connectorName || '' })
+    }
+
+    static async syncConnection(itemId) {
+        const result = await ApiClient.post(`/api/connections/${encodeURIComponent(itemId)}/sync`, {})
+        await this._loadAll()
+        return result
+    }
+
+    static async deleteConnection(itemId) {
+        return ApiClient.delete(`/api/connections/${encodeURIComponent(itemId)}`)
     }
 }
 

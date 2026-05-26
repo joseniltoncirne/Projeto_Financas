@@ -9,6 +9,9 @@ const envSchema = z.object({
   HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   ALLOWED_ORIGIN: z.string().default('http://localhost:5173'),
+  PLUGGY_CLIENT_ID: z.string().min(1, 'PLUGGY_CLIENT_ID é obrigatório'),
+  PLUGGY_CLIENT_SECRET: z.string().min(1, 'PLUGGY_CLIENT_SECRET é obrigatório'),
+  PLUGGY_WEBHOOK_SECRET: z.string().min(32, 'PLUGGY_WEBHOOK_SECRET deve ter pelo menos 32 caracteres'),
 })
 
 const parsed = envSchema.safeParse(process.env)

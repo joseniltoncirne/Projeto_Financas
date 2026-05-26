@@ -1,0 +1,41 @@
+# Dependências
+node_modules/
+backend/node_modules/
+
+# Build
+dist/
+backend/dist/
+
+# Banco de dados
+backend/prisma/*.db
+backend/prisma/*.db-journal
+backend/prisma/*.db-shm
+backend/prisma/*.db-wal
+
+# Variáveis de ambiente
+.env
+.env.local
+.env.*.local
+backend/.env
+backend/.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Backups e arquivos temporários
+backups/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Relatórios e scripts de teste locais
+qa2-relatorio.md
+test-*.mjs

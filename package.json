@@ -10,5 +10,8 @@
   "devDependencies": {
     "playwright-core": "^1.60.0",
     "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "pluggy-connect-sdk": "^2.13.0"
   }
 }

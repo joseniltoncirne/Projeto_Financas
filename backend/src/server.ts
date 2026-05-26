@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { buildApp } from './app.js'
 import { env } from './config.js'
 import { prisma } from './lib/prisma.js'
+import { startCronJobs } from './services/cron.service.js'
 
 async function main() {
   const app = await buildApp()
@@ -9,6 +10,7 @@ async function main() {
   try {
     await app.listen({ port: env.PORT, host: env.HOST })
     app.log.info(`🚀 Servidor rodando em http://${env.HOST}:${env.PORT}`)
+    startCronJobs()
   } catch (err) {
     app.log.error(err)
     await prisma.$disconnect()

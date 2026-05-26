@@ -34,7 +34,7 @@ class AuthUI {
         </div>
         <div class="auth-field">
           <label class="auth-label">Senha</label>
-          <input class="auth-input" id="auth-pw" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+          <input class="auth-input" id="auth-pw" type="password" placeholder="Mínimo 10 caracteres" autocomplete="new-password">
         </div>
         <div class="auth-field">
           <label class="auth-label">Confirmar senha</label>

@@ -18,7 +18,7 @@ export const categoryRepository = {
   update(
     userId: string,
     key: string,
-    data: { label?: string; color?: string | null },
+    data: { label?: string; color?: string | null; budget?: number | null },
   ) {
     return prisma.category.updateMany({ where: { userId, key }, data })
   },

@@ -16,5 +16,9 @@ export const deleteAmountRuleSchema = z.object({
   amount: z.coerce.number().positive(),
 })
 
+export const deleteRuleSchema = z.object({
+  memo: z.string().trim().toLowerCase().min(1, 'Memo é obrigatório'),
+})
+
 export type UpsertRuleInput = z.infer<typeof upsertRuleSchema>
 export type UpsertAmountRuleInput = z.infer<typeof upsertAmountRuleSchema>

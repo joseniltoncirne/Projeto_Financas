@@ -13,6 +13,7 @@ export const createCategorySchema = z.object({
 export const updateCategorySchema = z.object({
   label: z.string().trim().min(1).optional(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).nullable().optional(),
+  budget: z.number().positive().nullable().optional(),
 })
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>

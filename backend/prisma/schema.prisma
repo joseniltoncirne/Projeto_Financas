@@ -14,29 +14,33 @@ model User {
   passwordHash String
   createdAt    DateTime @default(now())
 
-  incomes       Income[]
-  expenses      Expense[]
-  balances      Balance[]
-  rules         Rule[]
-  amountRules   AmountRule[]
-  categories    Category[]
-  aliases       Alias[]
-  refreshTokens RefreshToken[]
+  incomes         Income[]
+  expenses        Expense[]
+  balances        Balance[]
+  rules           Rule[]
+  amountRules     AmountRule[]
+  categories      Category[]
+  aliases         Alias[]
+  refreshTokens   RefreshToken[]
+  bankConnections BankConnection[]
+  fixedExpenses   FixedExpense[]
 }
 
 model Income {
-  id        String   @id @default(uuid())
-  userId    String
-  month     String
-  name      String
-  amount    Float
-  bank      String
-  dateStr   String?
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  userId     String
+  month      String
+  name       String
+  amount     Float
+  bank       String
+  dateStr    String?
+  externalId String?
+  createdAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, month, bank])
+  @@index([userId, externalId])
 }
 
 model Expense {
@@ -52,12 +56,14 @@ model Expense {
   isResgate  Boolean  @default(false)
   isInternal Boolean  @default(false)
   dateStr    String?
+  externalId String?
   createdAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, month, bank])
   @@index([userId, sector])
+  @@index([userId, externalId])
 }
 
 model Balance {
@@ -97,11 +103,13 @@ model AmountRule {
 }
 
 model Category {
-  id     String  @id @default(uuid())
-  userId String
-  key    String
-  label  String
-  color  String?
+  id      String  @id @default(uuid())
+  userId  String
+  key     String
+  label   String
+  color   String?
+  isFixed Boolean @default(false)
+  budget  Float?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -127,4 +135,47 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BankConnection {
+  id        String    @id @default(uuid())
+  userId    String
+  itemId    String    @unique
+  bank      String
+  status    String    @default("ok")
+  lastSync  DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model FixedExpense {
+  id           String   @id @default(uuid())
+  userId       String
+  name         String
+  amount       Float?
+  active       Boolean  @default(true)
+  endMonth     String?
+  autoLinkName String?
+  createdAt    DateTime @default(now())
+
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments FixedExpensePayment[]
+
+  @@index([userId])
+}
+
+model FixedExpensePayment {
+  id             String   @id @default(uuid())
+  fixedExpenseId String
+  month          String
+  expenseId      String?
+  autoCreated    Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  fixedExpense FixedExpense @relation(fields: [fixedExpenseId], references: [id], onDelete: Cascade)
+
+  @@unique([fixedExpenseId, month])
 }

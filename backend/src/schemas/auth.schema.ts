@@ -24,7 +24,7 @@ export const registerSchema = z.object({
     .string()
     .transform(v => v.replace(/\D/g, ''))
     .refine(validateCPF, 'CPF inválido'),
-  password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
+  password: z.string().min(10, 'Senha deve ter pelo menos 10 caracteres'),
 })
 
 export const loginSchema = z.object({

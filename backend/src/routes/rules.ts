@@ -5,6 +5,7 @@ import {
   upsertRuleSchema,
   upsertAmountRuleSchema,
   deleteAmountRuleSchema,
+  deleteRuleSchema,
 } from '../schemas/rule.schema.js'
 
 export async function ruleRoutes(app: FastifyInstance) {
@@ -20,6 +21,14 @@ export async function ruleRoutes(app: FastifyInstance) {
     const { memo, category } = upsertRuleSchema.parse(request.body)
     const rule = await ruleRepository.upsert(userId, memo, category)
     return reply.send(rule)
+  })
+
+  // DELETE /api/rules?memo=...
+  app.delete('/rules', { preHandler: authenticate }, async (request, reply) => {
+    const userId = (request.user as { sub: string }).sub
+    const { memo } = deleteRuleSchema.parse(request.query)
+    await ruleRepository.delete(userId, memo)
+    return reply.status(204).send()
   })
 
   // GET /api/amount-rules

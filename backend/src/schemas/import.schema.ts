@@ -6,7 +6,7 @@ const transactionSchema = z.object({
   id: z.string().optional(),
   month: z.string().regex(monthRegex),
   dateStr: z.string().optional(),
-  name: z.string().trim().min(1),
+  name: z.string().trim().min(1).max(500),
   amount: z.number().positive(),
   isIncome: z.boolean(),
   isResgate: z.boolean().default(false),
@@ -18,7 +18,9 @@ const transactionSchema = z.object({
 })
 
 export const bulkImportSchema = z.object({
-  transactions: z.array(transactionSchema).min(1, 'Nenhuma transação para importar'),
+  transactions: z.array(transactionSchema)
+    .min(1, 'Nenhuma transação para importar')
+    .max(1000, 'Máximo de 1000 transações por importação'),
   bank: z.string().trim().min(1),
   saldoFinal: z.number().optional(),
   saldoMonth: z.string().regex(monthRegex).optional(),

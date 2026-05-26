@@ -4,6 +4,14 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+        // Aplica tema antes de qualquer render para evitar flash de tema claro.
+        (() => {
+            if (localStorage.getItem('mf_theme') === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark')
+            }
+        })()
+    </script>
     <title>O Orientador</title>
     <link rel="icon" href="./public/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -49,6 +57,7 @@
             <span class="logo-name"><span class="logo-o">O</span> Orientador</span>
             <input type="file" id="ofx-input" accept=".ofx,.OFX,.pdf,.PDF,.csv,.CSV" style="display:none"
                 onchange="app.handleFileInput(event)">
+            <button class="header-theme-btn" id="header-theme-btn" onclick="ThemeManager.cycle()" title="Trocar tema"></button>
             <div class="user-btn" id="user-btn"
                 onclick="document.getElementById('user-dropdown').classList.toggle('open')">
                 <div class="user-avatar" id="user-avatar"></div>
@@ -98,23 +107,28 @@
     </div>
 
     <main class="main" id="app-main" style="display:none">
-        <!-- Drop zone (desktop only) -->
-        <div class="dropzone" id="dropzone" ondragover="app.onDragOver(event)" ondragleave="app.onDragLeave(event)" ondrop="app.onDrop(event)">
-            <div class="drop-icon-wrap">
-                <svg class="drop-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" y1="3" x2="12" y2="15"/>
-                </svg>
+        <!-- Seção de conexão bancária + importação -->
+        <div class="bank-connect-section">
+            <!-- Bancos conectados via Pluggy -->
+            <div class="connections-header">
+                <span class="connections-title">🏦 Bancos conectados</span>
+                <button class="conn-add-btn" onclick="app.openPluggyWidget()">🔗 Conectar banco</button>
             </div>
-            <div class="drop-title">Arraste o extrato aqui</div>
-            <div class="drop-sub">Aceita extratos de qualquer banco</div>
-            <div class="drop-badges">
-                <span class="drop-badge">.CSV</span>
-                <span class="drop-badge">.OFX</span>
-                <span class="drop-badge">.PDF</span>
-            </div>
-            <button class="drop-cta" onclick="document.getElementById('ofx-input').click()">Selecionar arquivo</button>
+            <div id="connections-list"></div>
+
+            <!-- Importação manual — opção secundária -->
+            <details class="import-secondary">
+                <summary>📂 Importar extrato manualmente</summary>
+                <div class="dropzone dropzone-compact" id="dropzone" ondragover="app.onDragOver(event)" ondragleave="app.onDragLeave(event)" ondrop="app.onDrop(event)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4;flex-shrink:0">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17 8 12 3 7 8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <span class="dropzone-compact-text">Arraste um extrato aqui <span class="drop-badges-inline"><span class="drop-badge">.CSV</span><span class="drop-badge">.OFX</span><span class="drop-badge">.PDF</span></span></span>
+                    <button class="drop-cta drop-cta-sm" onclick="document.getElementById('ofx-input').click()">Selecionar</button>
+                </div>
+            </details>
         </div>
         <!-- Importar extrato (mobile only) -->
         <button class="mobile-import-btn" onclick="document.getElementById('ofx-input').click()">↓ Importar extrato</button>
@@ -125,17 +139,19 @@
         <!-- Overview geral -->
         <div id="sec-overview"></div>
 
-        <!-- Bank sections -->
+        <!-- Minhas Contas (global — fora do bank-sections) -->
+        <div id="sec-analise" style="display:none"></div>
+
+        <!-- Bank sections (bancos específicos) -->
         <div id="bank-sections">
-<!-- Seletor de banco no modo geral -->
+            <!-- Seletor de banco no modo geral -->
             <div id="detail-bank-picker"></div>
 
             <!-- Tabs -->
             <div class="tabs">
                 <button class="tab active" onclick="app.switchTab('resumo')">◈ Resumo</button>
-                <button class="tab" onclick="app.switchTab('rendas')">↑ Rendas</button>
-                <button class="tab" onclick="app.switchTab('gastos')">↓ Gastos</button>
-                <button class="tab" onclick="app.switchTab('analise')">⌁ Análise</button>
+                <button class="tab tab-entradas" onclick="app.switchTab('rendas')">↓ Entradas</button>
+                <button class="tab tab-saidas" onclick="app.switchTab('gastos')">↑ Saídas</button>
             </div>
 
             <!-- Month nav -->
@@ -149,22 +165,33 @@
             <div id="sec-resumo" class="section active"></div>
             <div id="sec-rendas" class="section"></div>
             <div id="sec-gastos" class="section"></div>
-            <div id="sec-analise" class="section"></div>
         </div><!-- /bank-sections -->
     </main>
 
     <script src="./src/js/constants.js"></script>
+    <script src="./src/js/services/ThemeManager.js"></script>
     <script src="./src/js/services/ApiClient.js"></script>
     <script src="./src/js/services/AuthService.js"></script>
     <script src="./src/js/ui/AuthUI.js"></script>
     <script src="./src/js/services/DataStore.js"></script>
+    <script src="./src/js/services/BudgetNotifier.js"></script>
+    <script src="./src/js/services/RecurrenceDetector.js"></script>
     <script src="./src/js/utils/BankDetector.js"></script>
     <script src="./src/js/utils/BankProfile.js"></script>
     <script src="./src/js/utils/Classifier.js"></script>
     <script src="./src/js/services/ImportService.js"></script>
     <script src="./src/js/ui/Renderer.js"></script>
     <script src="./src/js/app.js"></script>
+    <script src="./src/js/ui/CategoryDetailUI.js"></script>
+    <script src="./src/js/ui/CategoryManagerUI.js"></script>
+    <script src="./src/js/ui/ImportUI.js"></script>
+    <script src="./src/js/ui/BankConnectionUI.js"></script>
+    <script src="./src/js/ui/ChecklistUI.js"></script>
     <script src="./src/main.js"></script>
+    <script type="module">
+        import { PluggyConnect } from 'pluggy-connect-sdk'
+        window.PluggyConnect = PluggyConnect
+    </script>
 </body>
 
 </html>

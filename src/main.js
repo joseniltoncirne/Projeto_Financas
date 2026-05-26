@@ -24,6 +24,24 @@ async function onLoginSuccess(session) {
 
         app.currentUser = session
         app.init()
+
+        // Sync silencioso em background — não bloqueia a UI
+        ApiClient.get('/api/connections').then(connections => {
+            if (!connections.length) return
+            Promise.allSettled(
+                connections.map(c => ApiClient.post(`/api/connections/${c.itemId}/sync`, {}))
+            ).then(async results => {
+                const total = results
+                    .filter(r => r.status === 'fulfilled')
+                    .reduce((sum, r) => sum + (r.value?.synced ?? 0), 0)
+                if (total > 0) {
+                    await DataStore._loadAll()
+                    app.render()
+                    app.initBankConnections()
+                    app._showToast(`✓ ${total} transações novas importadas automaticamente.`, 'toast-success')
+                }
+            })
+        }).catch(() => {})
     } catch (error) {
         console.error('Erro ao iniciar o aplicativo:', error)
         await AuthService.logout()

@@ -15,6 +15,9 @@ import { categoryRoutes } from './routes/categories.js'
 import { importRoutes } from './routes/import.js'
 import { bankRoutes } from './routes/banks.js'
 import { aliasRoutes } from './routes/aliases.js'
+import { connectionRoutes } from './routes/connections.js'
+import { webhookRoutes } from './routes/webhooks.js'
+import { fixedExpenseRoutes } from './routes/fixed-expenses.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -33,11 +36,40 @@ export async function buildApp() {
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 
+  // ── CORS: allowlist mesmo em dev (localhost + IPs da rede privada) ─────────
+  // Em prod, ALLOWED_ORIGIN pode ter múltiplas origens separadas por vírgula.
+  const allowedOrigins = env.ALLOWED_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
+  const isPrivateHost = (host: string) => (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
+  )
   await app.register(cors, {
-    origin: env.ALLOWED_ORIGIN,
+    origin: (origin, cb) => {
+      // Requisições sem Origin (curl, healthcheck, server-to-server)
+      if (!origin) return cb(null, true)
+      // Produção: só ALLOWED_ORIGIN
+      if (env.NODE_ENV === 'production') {
+        return cb(null, allowedOrigins.includes(origin))
+      }
+      // Dev: localhost + rede privada (permite teste em celular na mesma rede)
+      try {
+        const url = new URL(origin)
+        return cb(null, isPrivateHost(url.hostname))
+      } catch {
+        return cb(null, false)
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   })
+
+  // Fail-fast em prod: ALLOWED_ORIGIN não pode ser localhost
+  if (env.NODE_ENV === 'production' && allowedOrigins.some(o => o.includes('localhost') || o.includes('127.0.0.1'))) {
+    throw new Error('ALLOWED_ORIGIN não pode apontar para localhost em produção')
+  }
 
   await app.register(rateLimit, {
     global: false, // aplica só onde configurado
@@ -54,7 +86,7 @@ export async function buildApp() {
   // ── Rotas de autenticação (com rate limiting próprio) ───────────────────────
   await app.register(
     async (authApp) => {
-      await authApp.register(rateLimit, { max: 10, timeWindow: '1 minute' })
+      await authApp.register(rateLimit, { max: 5, timeWindow: '1 minute' })
       await authApp.register(authRoutes)
     },
     { prefix: '/auth' },
@@ -69,6 +101,9 @@ export async function buildApp() {
   await app.register(importRoutes, { prefix: '/api/import' })
   await app.register(bankRoutes, { prefix: '/api/banks' })
   await app.register(aliasRoutes, { prefix: '/api/aliases' })
+  await app.register(connectionRoutes, { prefix: '/api/connections' })
+  await app.register(fixedExpenseRoutes, { prefix: '/api/fixed-expenses' })
+  await app.register(webhookRoutes, { prefix: '/webhooks' })
 
   // ── Health check ────────────────────────────────────────────────────────────
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }))

@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 class ApiClient {
-    static BASE = 'http://localhost:3333'
+    static BASE = `http://${window.location.hostname}:3333`
     static _accessToken = null
     static _refreshToken = null
 
