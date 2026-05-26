@@ -39,6 +39,72 @@ export interface MappedTransaction {
   externalId: string
 }
 
+// Title-case simples para nomes que vêm em ALL CAPS da Pluggy
+function titleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .split(/\s+/)
+    .map(w => {
+      // Mantém siglas curtas (LTDA, S.A., ME, EIRELI, etc.) em maiúscula
+      if (/^(ltda|me|s\.?a\.?|eireli|epp|mei|cnpj|cpf)$/i.test(w)) return w.toUpperCase()
+      return w.charAt(0).toUpperCase() + w.slice(1)
+    })
+    .join(' ')
+}
+
+// Constrói um nome mais legível para a transação aproveitando paymentData/merchant.
+// Para "PIX ENVIADO" sozinho ficamos com "PIX · Nome Do Destinatário".
+function enrichTransactionName(t: PluggyTransaction, isIncome: boolean): string {
+  const desc = (t.description || '').trim()
+
+  // 1) merchant (PJ com CNPJ) tem prioridade — info mais confiável
+  const merchantName = t.merchant?.businessName?.trim()
+  if (merchantName) {
+    const prefix = (t.operationType || t.paymentData?.paymentMethod || '').toUpperCase()
+    return prefix ? `${prefix} · ${titleCase(merchantName)}` : titleCase(merchantName)
+  }
+
+  // 2) PIX com destinatário/pagador identificado
+  const counterparty = isIncome
+    ? t.paymentData?.payer?.name
+    : t.paymentData?.receiver?.name
+  if (counterparty) {
+    const prefix = (t.operationType || t.paymentData?.paymentMethod || 'PIX').toUpperCase()
+    return `${prefix} · ${titleCase(counterparty.trim())}`
+  }
+
+  return desc || 'Sem descrição'
+}
+
+// Mapeia a categoria que a Pluggy já atribui (inglês) para nossa categoria PT.
+// Retorna null quando não houver mapeamento confiável (deixa o classifier decidir).
+function mapPluggyCategory(t: PluggyTransaction): string | null {
+  const c = (t.merchant?.category || t.category || '').toLowerCase()
+  if (!c) return null
+  if (c.includes('eating out') || c.includes('food and drinks') || c.includes('groceries') || c.includes('restaurant'))
+    return 'alimentacao'
+  if (c.includes('pharmacy') || c.includes('health') || c.includes('medical'))
+    return 'saude'
+  if (c.includes('gas station') || c.includes('fuel'))
+    return 'transporte'
+  if (c.includes('transportation') || c.includes('ride') || c.includes('uber') || c.includes('taxi') || c.includes('parking'))
+    return 'transporte'
+  if (c.includes('clothing') || c.includes('apparel') || c.includes('shopping'))
+    return 'outros'
+  if (c.includes('beauty') || c.includes('personal care') || c.includes('barbershop'))
+    return 'saude'
+  if (c.includes('pet'))
+    return 'outros'
+  if (c.includes('education') || c.includes('school'))
+    return 'educacao'
+  if (c.includes('entertainment') || c.includes('sports practice') || c.includes('streaming'))
+    return 'lazer'
+  if (c.includes('housing') || c.includes('rent') || c.includes('utilities'))
+    return 'moradia'
+  // 'Transfer - PIX', 'Same person transfer', 'Services' são ambíguos — deixa o classifier
+  return null
+}
+
 export const SyncService = {
   mapTransaction(
     t: PluggyTransaction,
@@ -56,8 +122,9 @@ export const SyncService = {
     const dateStr = `${day}/${mo}/${yr}`
 
     const amount = Math.abs(t.amount)
+    const name = enrichTransactionName(t, isIncome)
     const classified = ClassifierService.classify(
-      t.description ?? '',
+      name,
       isIncome,
       amount,
       bank,
@@ -66,15 +133,22 @@ export const SyncService = {
       amountRules,
     )
 
+    // Se o classifier caiu em 'outros'/null, tenta a categoria que a Pluggy sugeriu
+    let category = classified.category
+    if ((!category || category === 'outros') && !classified.isResgate && !classified.isInternal && classified.sector === 'gasto') {
+      const pluggyHint = mapPluggyCategory(t)
+      if (pluggyHint) category = pluggyHint
+    }
+
     return {
       month,
-      name: t.description ?? 'Sem descrição',
+      name,
       amount,
       isIncome: classified.isIncome,
       isResgate: classified.isResgate,
       isInternal: classified.isInternal,
       sector: classified.sector,
-      category: classified.category,
+      category,
       type: 'variavel',
       bank,
       dateStr,

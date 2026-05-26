@@ -22,12 +22,28 @@ export interface PluggyTransaction {
   accountId: string
   date: string        // ISO date string
   description: string
+  descriptionRaw?: string | null
   amount: number      // valor absoluto
   type: 'CREDIT' | 'DEBIT'
   category: string | null
+  operationType?: string | null
   paymentData?: {
     paymentMethod?: string
-  }
+    payer?: {
+      name?: string | null
+      documentNumber?: { type?: string; value?: string } | null
+    } | null
+    receiver?: {
+      name?: string | null
+      documentNumber?: { type?: string; value?: string } | null
+    } | null
+  } | null
+  merchant?: {
+    businessName?: string | null
+    cnpj?: string | null
+    cnae?: string | null
+    category?: string | null
+  } | null
 }
 
 export interface PluggyItem {
