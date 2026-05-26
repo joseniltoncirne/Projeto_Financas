@@ -76,6 +76,30 @@ function enrichTransactionName(t: PluggyTransaction, isIncome: boolean): string 
   return desc || 'Sem descrição'
 }
 
+// Detecta transferência entre contas próprias do usuário (não é gasto real).
+// Em qualquer PIX saindo, o payer é sempre o dono da conta (= usuário).
+// Em qualquer PIX entrando, o receiver é sempre o dono da conta (= usuário).
+// O sinal de transferência própria está no OUTRO lado:
+//  - DEBIT (saindo): receiver tem o mesmo CPF do usuário → transferiu pra si mesmo
+//  - CREDIT (entrando): payer tem o mesmo CPF do usuário → recebeu de si mesmo
+// Também aceita o flag explícito da Pluggy 'Same person transfer'.
+function isSelfTransfer(t: PluggyTransaction, userCpf: string | null): boolean {
+  const cat = (t.category || '').toLowerCase()
+  if (cat.includes('same person transfer')) return true
+  if (!userCpf) return false
+  const cleanUser = userCpf.replace(/\D/g, '')
+  if (!cleanUser) return false
+  if (t.type === 'DEBIT') {
+    const recv = (t.paymentData?.receiver?.documentNumber?.value || '').replace(/\D/g, '')
+    return recv === cleanUser
+  }
+  if (t.type === 'CREDIT') {
+    const payer = (t.paymentData?.payer?.documentNumber?.value || '').replace(/\D/g, '')
+    return payer === cleanUser
+  }
+  return false
+}
+
 // Mapeia a categoria que a Pluggy já atribui (inglês) para nossa categoria PT.
 // Retorna null quando não houver mapeamento confiável (deixa o classifier decidir).
 function mapPluggyCategory(t: PluggyTransaction): string | null {
@@ -113,6 +137,7 @@ export const SyncService = {
     userName: string | null,
     rules: Map<string, string>,
     amountRules: Map<string, string>,
+    userCpf: string | null = null,
   ): MappedTransaction {
     const date = new Date(t.date)
     const month = t.date.slice(0, 7)
@@ -133,9 +158,18 @@ export const SyncService = {
       amountRules,
     )
 
+    // Transferência entre contas próprias (Same person transfer ou mesmo CPF)
+    // sobrescreve a classificação — não é gasto/renda, é movimentação interna.
+    let sector = classified.sector
+    let isInternal = classified.isInternal
+    if (isSelfTransfer(t, userCpf)) {
+      sector = 'entre_contas'
+      isInternal = true
+    }
+
     // Se o classifier caiu em 'outros'/null, tenta a categoria que a Pluggy sugeriu
     let category = classified.category
-    if ((!category || category === 'outros') && !classified.isResgate && !classified.isInternal && classified.sector === 'gasto') {
+    if ((!category || category === 'outros') && !classified.isResgate && !isInternal && sector === 'gasto') {
       const pluggyHint = mapPluggyCategory(t)
       if (pluggyHint) category = pluggyHint
     }
@@ -146,8 +180,8 @@ export const SyncService = {
       amount,
       isIncome: classified.isIncome,
       isResgate: classified.isResgate,
-      isInternal: classified.isInternal,
-      sector: classified.sector,
+      isInternal,
+      sector,
       category,
       type: 'variavel',
       bank,
@@ -173,7 +207,7 @@ export const SyncService = {
     try {
       // Carrega dados do usuário e suas regras para classificação
       const [user, rules, amountRules] = await Promise.all([
-        prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+        prisma.user.findUnique({ where: { id: userId }, select: { name: true, cpf: true } }),
         prisma.rule.findMany({ where: { userId } }),
         prisma.amountRule.findMany({ where: { userId } }),
       ])
@@ -181,6 +215,7 @@ export const SyncService = {
       const rulesMap = new Map(rules.map(r => [r.memo.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''), r.category]))
       const amountRulesMap = new Map(amountRules.map(r => [`${r.normalizedName}::${r.amount.toFixed(2)}`, r.category]))
       const userName = user?.name ?? null
+      const userCpf = user?.cpf ?? null
 
       const to = new Date()
       const LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000 // 7 dias de margem para transações que liquidam tarde
@@ -229,7 +264,7 @@ export const SyncService = {
 
         for (const t of transactions) {
           const isIncome = t.type === 'CREDIT'
-          const mapped = this.mapTransaction(t, bank, isIncome, userName, rulesMap, amountRulesMap)
+          const mapped = this.mapTransaction(t, bank, isIncome, userName, rulesMap, amountRulesMap, userCpf)
           allMapped.push(mapped)
         }
       }
