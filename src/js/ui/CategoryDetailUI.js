@@ -62,7 +62,7 @@ Object.assign(FinanceApp.prototype, {
             const style = isPinned
                 ? 'margin-top:4px;font-size:10px;padding:2px 8px;border:1.5px solid #16a34a;border-radius:4px;background:#22c55e;cursor:pointer;color:#fff;font-weight:600'
                 : 'margin-top:4px;font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;color:var(--text2)'
-            return `<button onclick="app.pinAmountRule('${esc(e.id)}','${category}','${bankArg}')" style="${style}" title="Fixar/desfixar categoria para este valor exato">📌 ${isPinned ? 'Fixado' : 'Fixar valor'}</button>`
+            return `<button onclick="app.pinAmountRule('${esc(e.id)}','${category}','${bankArg}')" style="${style}" title="Fixar/desfixar categoria para este valor exato">📌 ${isPinned ? 'Fixado' : 'Fixar pelo valor'}</button>`
         }
 
         const aliasBtn = (e) => {
@@ -70,8 +70,10 @@ Object.assign(FinanceApp.prototype, {
             const style = currentAlias
                 ? 'margin-top:4px;margin-left:4px;font-size:10px;padding:2px 8px;border:1.5px solid #0ea5e9;border-radius:4px;background:#0ea5e9;cursor:pointer;color:#fff;font-weight:600'
                 : 'margin-top:4px;margin-left:4px;font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;color:var(--text2)'
-            return `<button onclick="app.editAlias('${esc(e.id)}')" style="${style}" title="Criar apelido para este destino">✏️ ${currentAlias ? esc(currentAlias) : 'Apelido'}</button>`
+            return `<button onclick="app.editAlias('${esc(e.id)}')" style="${style}" title="Criar apelido para este destino">✏️</button>`
         }
+
+        const delBtn = (e) => `<button class="del-btn cat-detail-del" onclick="event.stopPropagation();app._removeExpenseFromCatDetail('${esc(e.id)}')" title="Excluir gasto" aria-label="Excluir gasto"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>`
 
         const mkRowInCard = (e, isLast) => `<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:9px 0;${isLast ? '' : 'border-bottom:1px solid rgba(0,0,0,0.07);'}">
             <div>
@@ -79,7 +81,10 @@ Object.assign(FinanceApp.prototype, {
                 ${mkCatSelect(e)}
                 ${pinBtn(e)}
             </div>
-            <span class="amount" style="font-weight:600;padding-top:2px">${fmt(e.amount)}</span>
+            <div style="display:flex;align-items:center;gap:8px;padding-top:2px">
+                <span class="amount" style="font-weight:600">${fmt(e.amount)}</span>
+                ${delBtn(e)}
+            </div>
         </div>`
 
         const mkRowSingle = (e) => `<div class="row">
@@ -90,7 +95,10 @@ Object.assign(FinanceApp.prototype, {
                 ${pinBtn(e)}
             </div>
             <div class="row-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-                <span class="amount">${fmt(e.amount)}</span>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span class="amount">${fmt(e.amount)}</span>
+                    ${delBtn(e)}
+                </div>
                 ${aliasBtn(e)}
             </div>
         </div>`
@@ -195,6 +203,19 @@ Object.assign(FinanceApp.prototype, {
         document.getElementById('detail-overlay').classList.add('hidden')
     },
 
+    // Reusa o fluxo padrão de removeExpense (com confirmação), e depois re-renderiza
+    // o detalhe da categoria que estava aberto para refletir a exclusão sem precisar
+    // fechar e reabrir o modal.
+    async _removeExpenseFromCatDetail(id) {
+        const state = this._catDetailState
+        await this.removeExpense(id)
+        // removeExpense pode ter sido cancelada (confirm) ou falhado — só re-abre se a
+        // expense realmente sumiu, e se ainda estávamos num detalhe de categoria.
+        if (state && !DataStore.getExpenseById(id)) {
+            this.showCategoryDetail(state.category, state.bank || null)
+        }
+    },
+
     _catDetailHelpHtml() {
         return `<details class="cat-detail-help">
             <summary>
@@ -205,7 +226,7 @@ Object.assign(FinanceApp.prototype, {
                 <div class="cat-help-item">
                     <div class="cat-help-icon">📌</div>
                     <div>
-                        <div class="cat-help-title">Fixar valor</div>
+                        <div class="cat-help-title">Fixar pelo valor</div>
                         <div class="cat-help-desc">Toda transação com o mesmo nome <strong>e</strong> mesmo valor exato será classificada automaticamente nessa categoria. Útil pra cobranças recorrentes idênticas.</div>
                     </div>
                 </div>

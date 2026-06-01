@@ -66,6 +66,9 @@
                 <div class="user-dropdown" id="user-dropdown">
                     <div style="padding:10px 14px;font-size:12px;color:var(--text3)" id="user-dropdown-info"></div>
                     <div class="user-dropdown-divider"></div>
+                    <button class="user-dropdown-item" onclick="app.openBanksModal()">🏦 Bancos conectados</button>
+                    <button class="user-dropdown-item" onclick="app.openDeletedHistoryModal()">🗑️ Histórico de excluídos</button>
+                    <div class="user-dropdown-divider"></div>
                     <button class="user-dropdown-item danger" onclick="AuthService.logout();location.reload()">Sair
                         da conta</button>
                 </div>
@@ -107,31 +110,11 @@
     </div>
 
     <main class="main" id="app-main" style="display:none">
-        <!-- Seção de conexão bancária + importação -->
-        <div class="bank-connect-section">
-            <!-- Bancos conectados via Pluggy -->
-            <div class="connections-header">
-                <span class="connections-title">🏦 Bancos conectados</span>
-                <button class="conn-add-btn" onclick="app.openPluggyWidget()">🔗 Conectar banco</button>
-            </div>
-            <div id="connections-list"></div>
-
-            <!-- Importação manual — opção secundária -->
-            <details class="import-secondary">
-                <summary>📂 Importar extrato manualmente</summary>
-                <div class="dropzone dropzone-compact" id="dropzone" ondragover="app.onDragOver(event)" ondragleave="app.onDragLeave(event)" ondrop="app.onDrop(event)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4;flex-shrink:0">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="17 8 12 3 7 8"/>
-                        <line x1="12" y1="3" x2="12" y2="15"/>
-                    </svg>
-                    <span class="dropzone-compact-text">Arraste um extrato aqui <span class="drop-badges-inline"><span class="drop-badge">.CSV</span><span class="drop-badge">.OFX</span><span class="drop-badge">.PDF</span></span></span>
-                    <button class="drop-cta drop-cta-sm" onclick="document.getElementById('ofx-input').click()">Selecionar</button>
-                </div>
-            </details>
+        <!-- Importar extrato + sync (todos os tamanhos) -->
+        <div class="mobile-action-row">
+            <button class="mobile-import-btn" onclick="document.getElementById('ofx-input').click()">↓ Importar extrato</button>
+            <button id="sync-all-btn-mobile" class="mobile-sync-btn" onclick="app.syncAllBanks()" title="Sincronizar todos os bancos">↻ Sincronizar</button>
         </div>
-        <!-- Importar extrato (mobile only) -->
-        <button class="mobile-import-btn" onclick="document.getElementById('ofx-input').click()">↓ Importar extrato</button>
 
         <!-- Bank nav -->
         <div id="bank-nav" class="bank-nav"></div>
@@ -175,7 +158,6 @@
     <script src="./src/js/ui/AuthUI.js"></script>
     <script src="./src/js/services/DataStore.js"></script>
     <script src="./src/js/services/BudgetNotifier.js"></script>
-    <script src="./src/js/services/RecurrenceDetector.js"></script>
     <script src="./src/js/utils/BankDetector.js"></script>
     <script src="./src/js/utils/BankProfile.js"></script>
     <script src="./src/js/utils/Classifier.js"></script>
@@ -184,6 +166,7 @@
     <script src="./src/js/app.js"></script>
     <script src="./src/js/ui/CategoryDetailUI.js"></script>
     <script src="./src/js/ui/CategoryManagerUI.js"></script>
+    <script src="./src/js/ui/DeletedHistoryUI.js"></script>
     <script src="./src/js/ui/ImportUI.js"></script>
     <script src="./src/js/ui/BankConnectionUI.js"></script>
     <script src="./src/js/ui/ChecklistUI.js"></script>

@@ -126,8 +126,8 @@ export const importService = {
   ): Promise<{ synced: number }> {
     if (!transactions.length) return { synced: 0 }
 
-    // Coleta externalIds já existentes para este usuário
-    const [existingIncome, existingExpense] = await Promise.all([
+    // Coleta externalIds já existentes + tombstones (gastos/rendas excluídos pelo usuário)
+    const [existingIncome, existingExpense, tombstones] = await Promise.all([
       prisma.income.findMany({
         where: { userId, externalId: { not: null } },
         select: { externalId: true },
@@ -136,14 +136,19 @@ export const importService = {
         where: { userId, externalId: { not: null } },
         select: { externalId: true },
       }),
+      prisma.deletedExternalId.findMany({
+        where: { userId },
+        select: { externalId: true },
+      }),
     ])
 
     const seenIds = new Set<string>([
       ...existingIncome.map(r => r.externalId!),
       ...existingExpense.map(r => r.externalId!),
+      ...tombstones.map(r => r.externalId),
     ])
 
-    // Remove duplicatas
+    // Remove duplicatas (incluindo tombstones — não re-importa o que o usuário excluiu)
     const newTxs = transactions.filter(t => !seenIds.has(t.externalId))
     if (!newTxs.length) return { synced: 0 }
 

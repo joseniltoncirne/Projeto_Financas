@@ -815,7 +815,7 @@ Object.assign(FinanceApp.prototype, {
 
             box.innerHTML = `
                 <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px">✏️ Criar apelido</div>
-                <div style="font-size:11px;color:var(--text3);margin-bottom:20px;padding:8px 10px;background:var(--bg);border-radius:8px;word-break:break-all">${Renderer.esc(rawName)}</div>
+                <div id="_alias_original" style="font-size:11px;color:var(--text3);margin-bottom:20px;padding:8px 10px;background:var(--bg);border-radius:8px;word-break:break-all;cursor:pointer" title="Clique para usar o nome original">${Renderer.esc(rawName)}</div>
                 <label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px">Apelido</label>
                 <input id="_alias_input" type="text" placeholder="Ex: Barraquinha Faculdade" value="${Renderer.esc(currentAlias)}"
                     style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;color:var(--text);background:var(--surface);outline:none;margin-bottom:16px;transition:border-color .15s">
@@ -834,6 +834,12 @@ Object.assign(FinanceApp.prototype, {
             input.select()
             input.addEventListener('focus', () => { input.style.borderColor = '#0ea5e9' })
             input.addEventListener('blur', () => { input.style.borderColor = '' })
+
+            box.querySelector('#_alias_original').addEventListener('click', () => {
+                input.value = rawName
+                input.focus()
+                input.select()
+            })
 
             const close = (val) => { document.body.removeChild(overlay); resolve(val) }
 

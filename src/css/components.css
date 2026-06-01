@@ -248,6 +248,66 @@
     margin-top: 2px
 }
 
+.overview-emconta {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text3);
+    margin-top: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.overview-emconta strong {
+    font-weight: 700;
+    color: var(--text);
+}
+.overview-emconta-details {
+    margin-top: 4px;
+}
+.overview-emconta-details summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    padding: 4px 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+}
+.overview-emconta-details summary::-webkit-details-marker { display: none }
+.overview-emconta-details summary .chev {
+    font-size: 9px;
+    color: var(--text3);
+    transition: transform .2s;
+}
+.overview-emconta-details[open] summary .chev {
+    transform: rotate(180deg);
+}
+.overview-emconta-list {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 8px 12px;
+    margin-top: 4px;
+    background: var(--surface2);
+    border-radius: 8px;
+}
+.overview-emconta-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--text2);
+}
+.overview-emconta-bank {
+    color: var(--text3);
+}
+.overview-emconta-item strong {
+    color: var(--text);
+    font-weight: 600;
+}
+
 .overview-month-nav {
     display: flex;
     align-items: center;
@@ -257,35 +317,58 @@
 
 .overview-contas-btn {
     position: relative;
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 5px;
-    font-size: 12px;
-    font-weight: 700;
+    height: 36px;
+    padding: 0 14px;
+    font-size: 13px;
+    font-weight: 600;
     color: var(--purple-text);
     background: var(--purple-bg);
     border: 1.5px solid var(--purple);
-    border-radius: 20px;
-    padding: 6px 13px;
+    border-radius: 999px;
     cursor: pointer;
     margin-left: 8px;
+    transition: background .15s, color .15s;
+    line-height: 1;
     white-space: nowrap;
-    letter-spacing: .01em;
-    transition: background .15s, color .15s
 }
 .overview-contas-btn:hover {
     background: var(--purple);
-    color: #fff
+    color: #fff;
 }
 .contas-badge {
     position: absolute;
-    top: -4px;
-    right: -4px;
+    top: -2px;
+    right: -2px;
     width: 9px;
     height: 9px;
     background: #ef4444;
     border-radius: 50%;
-    border: 2px solid var(--surface)
+    border: 2px solid var(--surface);
+}
+
+/* Badge "hoje" / "futuro" no título do mês */
+.month-status-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .03em;
+    text-transform: lowercase;
+    vertical-align: 4px;
+}
+.month-status-badge.is-today {
+    background: var(--surface2);
+    color: var(--text2);
+}
+.month-status-badge.is-future {
+    background: var(--amber-bg);
+    color: var(--amber-text);
 }
 
 .overview-metrics {
@@ -552,14 +635,109 @@ button.overview-bank-row:hover {
     background: none;
     border: none;
     color: var(--text3);
-    font-size: 20px;
     line-height: 1;
-    padding: 0 3px;
-    transition: color .15s
+    padding: 6px 8px;
+    cursor: pointer;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color .15s, background .15s;
 }
 
 .del-btn:hover {
-    color: var(--red)
+    color: var(--red);
+    background: var(--red-bg);
+}
+
+/* Histórico de excluídos */
+.deleted-history-intro {
+    font-size: 12px;
+    color: var(--text3);
+    padding: 8px 10px;
+    background: var(--surface2);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+.deleted-history-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.deleted-history-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--border);
+}
+.deleted-history-row:last-child { border-bottom: none }
+.deleted-history-info { flex: 1; min-width: 0 }
+.deleted-history-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 3px;
+}
+.deleted-history-meta {
+    font-size: 11px;
+    color: var(--text2);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.deleted-history-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.deleted-history-amount {
+    font-size: 13px;
+    font-weight: 700;
+}
+.btn-restore {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s, color .15s, border-color .15s;
+}
+.btn-restore:hover {
+    background: var(--green-bg);
+    color: var(--green-text);
+    border-color: var(--green);
+}
+
+/* Variante do del-btn dentro do detalhe da categoria — mais discreto e com touch target */
+.cat-detail-del {
+    cursor: pointer;
+    font-size: 18px;
+    padding: 8px 10px;
+    margin: -8px -6px;
+    border-radius: 50%;
+    min-width: 32px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color .15s, background .15s;
+}
+.cat-detail-del:hover {
+    color: var(--red);
+    background: var(--red-bg);
 }
 
 .subtotal,
@@ -572,6 +750,191 @@ button.overview-bank-row:hover {
     padding: 8px 0;
     border-top: 1px solid var(--border);
     margin-top: 2px
+}
+
+/* Busca + "Ver mais" da aba Saídas */
+.expenses-search-wrap {
+    position: relative;
+    margin-bottom: 12px;
+}
+.expenses-search {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 32px 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color .15s;
+}
+.expenses-search:focus { border-color: var(--primary) }
+.expenses-search::placeholder { color: var(--text3) }
+.expenses-search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 50%;
+    background: var(--surface2);
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.expenses-search-clear:hover { background: var(--hover-tint-strong); color: var(--text) }
+
+/* Empty state grande quando o mês não tem dados consolidados (convida ao swipe) */
+.overview-empty-card {
+    background: var(--surface2);
+    border: 1px dashed var(--border-strong);
+    border-radius: 14px;
+    padding: 80px 24px;
+    margin: 16px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+    min-height: max(500px, 60vh);
+    justify-content: center;
+}
+.overview-empty-icon {
+    font-size: 72px;
+    line-height: 1;
+    opacity: .35;
+    margin-bottom: 10px;
+}
+.overview-empty-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text2);
+}
+.overview-empty-month {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+.overview-empty-hint {
+    font-size: 12px;
+    color: var(--text3);
+    margin-top: 8px;
+    font-style: italic;
+}
+
+/* Linha de comparação textual com o mês anterior */
+.evo-text {
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: .75rem;
+    padding: 10px 12px;
+    background: var(--surface2);
+    border-radius: 8px;
+    line-height: 1.45;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+.evo-text-arrow {
+    font-size: 16px;
+    font-weight: 700;
+    flex-shrink: 0;
+    line-height: 1.2;
+}
+.evo-text strong {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .evo-text {
+        font-size: 12.5px;
+        padding: 9px 11px;
+        gap: 7px;
+        line-height: 1.4;
+    }
+    .evo-text-arrow {
+        font-size: 14px;
+        margin-top: 1px;
+    }
+}
+
+/* Animação de troca de mês via swipe ou botões ‹ › */
+@keyframes month-slide-from-right {
+    0%   { transform: translateX(100%) scale(.96); opacity: 0 }
+    60%  { opacity: 1 }
+    100% { transform: translateX(0)     scale(1);  opacity: 1 }
+}
+@keyframes month-slide-from-left {
+    0%   { transform: translateX(-100%) scale(.96); opacity: 0 }
+    60%  { opacity: 1 }
+    100% { transform: translateX(0)      scale(1);  opacity: 1 }
+}
+.slide-from-right { animation: month-slide-from-right .5s cubic-bezier(.2,.8,.25,1) both }
+.slide-from-left  { animation: month-slide-from-left  .5s cubic-bezier(.2,.8,.25,1) both }
+
+/* Agrupamento de categorias pequenas no card Gastos Variáveis */
+.cat-small-details {
+    margin-top: 4px;
+}
+.cat-small-details summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    padding: 8px 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text3);
+    border-radius: 6px;
+    transition: background .15s;
+}
+.cat-small-details summary::-webkit-details-marker { display: none }
+.cat-small-details summary:hover { background: var(--hover-tint) }
+.cat-small-details summary strong {
+    color: var(--text2);
+    font-weight: 600;
+}
+.cat-small-details .chev {
+    font-size: 9px;
+    margin-left: 4px;
+    transition: transform .2s;
+    display: inline-block;
+}
+.cat-small-details[open] .chev { transform: rotate(180deg) }
+.cat-small-list {
+    padding-top: 4px;
+    border-top: 1px dashed var(--border);
+    margin-top: 4px;
+}
+
+.show-more-btn {
+    display: block;
+    width: 100%;
+    margin: 6px 0;
+    padding: 8px 12px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+}
+.show-more-btn:hover {
+    background: var(--hover-tint);
+    color: var(--text);
+    border-color: var(--border-strong);
 }
 
 .total-row {
@@ -604,18 +967,24 @@ button.overview-bank-row:hover {
 .cat-rename-btn {
     background: none;
     border: none;
-    padding: 2px 4px;
+    padding: 10px;
+    margin: -10px -6px;
     cursor: pointer;
     color: #aaa;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     flex-shrink: 0;
     line-height: 1;
-    transition: color .15s
+    border-radius: 50%;
+    transition: color .15s, background .15s;
+    min-width: 32px;
+    min-height: 32px;
 }
 
 .cat-rename-btn:hover {
-    color: var(--text2)
+    color: var(--text2);
+    background: var(--hover-tint);
 }
 
 .emoji-grid {
@@ -970,25 +1339,52 @@ button.overview-bank-row:hover {
 
 /* OFX Import button */
 
+/* Import + sync row (todos os tamanhos) */
+.mobile-action-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 1.25rem
+}
+
 .mobile-import-btn {
-    display: none;
-    width: 100%;
+    flex: 1;
+    display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
     background: #C9A84C;
     border: none;
     border-radius: var(--r);
-    padding: 14px;
-    font-size: 15px;
+    padding: 14px 10px;
+    font-size: 14px;
     font-weight: 700;
     color: #1C1C2E;
     cursor: pointer;
-    margin-bottom: 1.25rem;
     transition: opacity .15s
 }
 
 .mobile-import-btn:active {
+    opacity: .85
+}
+
+.mobile-sync-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 14px 16px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text2);
+    cursor: pointer;
+    transition: opacity .15s
+}
+
+.mobile-sync-btn:active {
     opacity: .85
 }
 
@@ -1039,11 +1435,17 @@ button.overview-bank-row:hover {
     font-size: 22px;
     color: var(--text3);
     line-height: 1;
-    padding: 0 4px
+    padding: 6px 10px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background .15s, color .15s;
+    flex-shrink: 0;
+    margin-left: auto;
 }
 
 .modal-close:hover {
-    color: var(--text)
+    color: var(--text);
+    background: var(--hover-tint);
 }
 
 .detail-search-wrap {
@@ -1183,105 +1585,99 @@ button.overview-bank-row:hover {
 
 
 /* Entre contas */
-.entre-contas-tab {
-    padding: 7px 18px;
-    border-radius: 20px;
-    border: 2px solid #1a9e74;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    background: var(--surface);
-    color: #1a9e74;
-    transition: all .15s;
-    display: flex;
-    align-items: center;
-    gap: 6px
-}
-
-.entre-contas-tab.active {
-    background: #1a9e74;
-    color: #fff
-}
-
-.entre-contas-tab:hover {
-    opacity: .8
-}
-
-/* Bank nav */
+/* Bank nav — pílulas neutras, cor só no ativo */
 .bank-nav {
     display: flex;
+    align-items: center;
     gap: 8px;
+    margin-bottom: 1.25rem;
+    padding-bottom: 2px;
+}
+
+.bank-nav-list {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex: 1;
     flex-wrap: nowrap;
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    margin-bottom: 1.25rem;
-    padding-bottom: 2px
+    min-width: 0;
+    padding-bottom: 2px;
 }
-
-.bank-nav::-webkit-scrollbar {
-    display: none
-}
+.bank-nav-list::-webkit-scrollbar { display: none }
 
 .bank-tab {
-    padding: 7px 18px;
-    border-radius: 20px;
-    border: 2px solid transparent;
-    font-size: 14px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    background: var(--surface);
-    transition: all .15s;
-    display: flex;
+    background: transparent;
+    color: var(--text2);
+    transition: background .15s, color .15s, border-color .15s;
+    display: inline-flex;
     align-items: center;
     gap: 6px;
-    flex-shrink: 0
+    flex-shrink: 0;
+    white-space: nowrap;
 }
-
+.bank-tab .bank-logo { width: 18px; height: 18px }
 .bank-tab:hover {
-    opacity: .8
+    background: var(--hover-tint);
+    color: var(--text);
+    border-color: var(--border-strong);
 }
 
-.bank-tab.nubank {
-    color: #8A05BE;
-    border-color: #8A05BE
+/* Ativo: fundo + texto na cor do banco, borda some */
+.bank-tab.active {
+    background: var(--bank-bg, var(--surface2));
+    color: var(--bank-text, var(--text));
+    border-color: transparent;
+}
+.bank-tab.active:hover {
+    background: var(--bank-bg, var(--surface2));
+    color: var(--bank-text, var(--text));
 }
 
-.bank-tab.nubank.active {
-    background: #8A05BE;
-    color: #fff
+/* "Geral" é a home */
+.bank-tab.geral.active {
+    background: var(--primary);
+    color: var(--surface);
 }
 
-.bank-tab.inter {
-    color: #FF6200;
-    border-color: #FF6200
+.entre-contas-tab {
+    flex-shrink: 0;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text3);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
-
-.bank-tab.inter.active {
-    background: #FF6200;
-    color: #fff
-}
-
-.bank-tab.generico {
-    color: var(--text2);
-    border-color: var(--border-strong)
-}
-
-.bank-tab.generico.active {
-    background: var(--text2);
-    color: #fff
+.entre-contas-tab:hover {
+    background: var(--hover-tint);
+    color: var(--text);
+    border-color: var(--border-strong);
 }
 
 .bank-tab.add-bank {
     color: var(--text3);
-    border-color: var(--border);
-    border-style: dashed;
-    font-weight: 500
+    border: 1px dashed var(--border);
+    font-weight: 500;
 }
-
 .bank-tab.add-bank:hover {
     color: var(--green);
-    border-color: var(--green)
+    border-color: var(--green);
+    background: transparent;
 }
 
 .bank-empty {
@@ -1358,11 +1754,7 @@ button.overview-bank-row:hover {
         display: none
     }
 
-    .mobile-import-btn {
-        display: flex
-    }
-
-    .import-secondary {
+    .import-sync-row {
         display: none
     }
 }
@@ -1819,39 +2211,257 @@ button.overview-bank-row:hover {
 }
 .connections-empty span:first-child { font-size: 32px; line-height: 1 }
 
+/* Modo compacto quando há 2+ bancos — flat, alinhado com o estilo da lista */
+.connections-compact-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 8px 4px;
+}
+
+.bank-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-evenly;
+    flex: 1;
+}
+.bank-chip-wrap {
+    position: relative;
+    display: inline-flex;
+}
+.bank-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    transition: transform .15s, opacity .15s;
+    opacity: .85;
+}
+.bank-chip:hover { transform: translateY(-1px); opacity: 1 }
+
+/* View de detalhe do banco — substitui os chips quando um banco é selecionado */
+.conn-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: conn-detail-in .2s ease-out;
+}
+@keyframes conn-detail-in {
+    from { opacity: 0; transform: translateX(8px) }
+    to   { opacity: 1; transform: translateX(0) }
+}
+.conn-detail-back {
+    align-self: flex-start;
+    background: transparent;
+    border: none;
+    color: var(--text2);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 0;
+    transition: color .15s;
+}
+.conn-detail-back:hover { color: var(--text) }
+.conn-detail-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.conn-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.conn-detail-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.conn-detail-logo .bank-logo { width: 36px; height: 36px }
+.conn-detail-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 2px;
+}
+.conn-detail-status {
+    font-size: 12px;
+    font-weight: 500;
+}
+.conn-detail-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.conn-detail-actions button {
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity .15s, background .15s;
+}
+.conn-detail-actions .btn-primary {
+    background: var(--primary);
+    color: var(--surface);
+    border: none;
+}
+.conn-detail-actions .btn-primary:hover:not(:disabled) { opacity: .85 }
+.conn-detail-actions .btn-primary:disabled { opacity: .5; cursor: not-allowed }
+.conn-detail-actions .btn-danger-outline {
+    background: transparent;
+    color: #ef4444;
+    border: 1.5px solid #fca5a5;
+}
+.conn-detail-actions .btn-danger-outline:hover { background: #fef2f2 }
+.bank-chip .bank-logo { width: 26px; height: 26px }
+.bank-chip-dot {
+    position: absolute;
+    bottom: -1px;
+    right: -2px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    border: 2px solid var(--surface);
+    box-shadow: 0 0 0 1px var(--border);
+}
+.bank-chip.is-ok .bank-chip-dot { background: #22c55e }
+.bank-chip.is-syncing .bank-chip-dot { background: #f59e0b; animation: pulse 1.4s infinite }
+.bank-chip.is-error .bank-chip-dot { background: #ef4444 }
+.bank-chip.is-error { border-color: #fca5a5 }
+@keyframes pulse {
+    0%, 100% { opacity: 1 }
+    50% { opacity: .4 }
+}
+
+.connections-compact-status {
+    font-size: 11px;
+    color: var(--text3);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 500;
+    flex: 1;
+    min-width: 0;
+}
+.connections-compact-status .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.connections-toggle {
+    background: transparent;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text3);
+    border-radius: 50%;
+    transition: color .15s, background .15s;
+    margin-left: auto;
+}
+.connections-toggle:hover {
+    color: var(--text);
+    background: var(--hover-tint);
+}
+
+/* Header da view expandida — só o botão de fechar, alinhado à direita */
+.connections-compact-header.is-expanded {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.connections-full-list {
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
 .connection-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 9px 12px;
-    border-radius: var(--rs);
-    background: var(--bg);
-    border: 1px solid var(--border);
-    margin-bottom: 6px;
-    transition: box-shadow .2s
+    gap: 10px;
+    padding: 10px 12px 10px 14px;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    border-left: 3px solid var(--bank-accent, var(--border));
+    background: transparent;
+    transition: background .15s;
+    margin-bottom: 0;
+    border-radius: 0;
 }
-.connection-item:last-child { margin-bottom: 0 }
-.connection-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,.07) }
+.connection-item:last-child { border-bottom: none }
+.connection-item:hover {
+    background: var(--hover-tint);
+    box-shadow: none;
+}
 
 .connection-info {
     display: flex;
     align-items: center;
-    gap: 10px
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
 }
 
 .connection-icon { font-size: 22px; line-height: 1; display:flex; align-items:center }
 .bank-logo { width: 28px; height: 28px; object-fit: contain; flex-shrink: 0; vertical-align: middle }
 .bank-tab .bank-logo { width: 20px; height: 20px }
 
+.connection-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.connection-logo .bank-logo { width: 24px; height: 24px }
+
+.connection-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    line-height: 1.3;
+}
+
 .connection-name {
     font-size: 13px;
     font-weight: 600;
-    color: var(--text)
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .connection-status {
     font-size: 11px;
-    margin-top: 2px
+    color: var(--text3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .conn-spin {
@@ -1861,17 +2471,18 @@ button.overview-bank-row:hover {
 
 .connection-actions {
     display: flex;
-    gap: 4px
+    gap: 4px;
+    flex-shrink: 0;
 }
 
 .conn-btn {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     border: 1px solid var(--border);
     border-radius: 6px;
-    background: var(--surface);
-    color: var(--text2);
-    font-size: 14px;
+    background: transparent;
+    color: var(--text3);
+    font-size: 12px;
     font-weight: 700;
     cursor: pointer;
     display: flex;
@@ -1925,6 +2536,40 @@ button.overview-bank-row:hover {
 .conn-dropdown-danger:hover { background: #fef2f2 }
 
 /* Importação manual — colapsável, discreta */
+.import-sync-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: .85rem;
+    border-top: 1px solid var(--border);
+    padding-top: .75rem
+}
+
+.import-sync-row .import-secondary {
+    flex: 1;
+    min-width: 0;
+    margin-top: 0;
+    border-top: none;
+    padding-top: 0
+}
+
+.sync-all-btn {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text3);
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color .15s
+}
+
+.sync-all-btn:hover {
+    color: var(--text2)
+}
+
 .import-secondary {
     margin-top: .85rem;
     border-top: 1px solid var(--border);

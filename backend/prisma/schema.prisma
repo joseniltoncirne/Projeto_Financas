@@ -23,7 +23,8 @@ model User {
   aliases         Alias[]
   refreshTokens   RefreshToken[]
   bankConnections BankConnection[]
-  fixedExpenses   FixedExpense[]
+  fixedExpenses      FixedExpense[]
+  deletedExternalIds DeletedExternalId[]
 }
 
 model Income {
@@ -157,6 +158,7 @@ model FixedExpense {
   name         String
   amount       Float?
   active       Boolean  @default(true)
+  startMonth   String?
   endMonth     String?
   autoLinkName String?
   createdAt    DateTime @default(now())
@@ -178,4 +180,24 @@ model FixedExpensePayment {
   fixedExpense FixedExpense @relation(fields: [fixedExpenseId], references: [id], onDelete: Cascade)
 
   @@unique([fixedExpenseId, month])
+}
+
+// Registro de transações que vieram do banco e foram excluídas pelo usuário.
+// O sync usa essa lista para não re-importar o que o usuário não quer mais.
+model DeletedExternalId {
+  id           String   @id @default(uuid())
+  userId       String
+  externalId   String
+  kind         String   // 'expense' | 'income'
+  name         String
+  amount       Float
+  bank         String
+  dateStr      String?
+  month        String
+  deletedAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, externalId])
+  @@index([userId])
 }

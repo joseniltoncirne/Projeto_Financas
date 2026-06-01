@@ -28,18 +28,16 @@ class Renderer {
             return
         }
         const geralActive = currentBank === 'geral'
-        nav.innerHTML = `<button class="bank-tab geral ${geralActive ? 'active' : ''}" style="display:inline-flex;align-items:center;gap:5px;${geralActive
-            ? 'background:#1C1C2E;color:#fff;border-color:#1C1C2E'
-            : 'color:#1C1C2E;border-color:#1C1C2E'}" onclick="app.switchBank('geral')">📊 Geral</button>`
+        const tabs = `<button class="bank-tab geral${geralActive ? ' active' : ''}" onclick="app.switchBank('geral')">📊 Geral</button>`
             + banks.filter(b => b !== 'entre_contas').map(b => {
-            const meta = BANK_META[b] || BANK_META.generico
-            const isActive = b === currentBank
-            const style = isActive
-                ? `background:${meta.bg};color:${meta.color};border-color:${meta.color};font-weight:700`
-                : `color:${meta.color};border-color:${meta.color}`
-            return `<button class="bank-tab ${b} ${isActive ? 'active' : ''}" style="display:inline-flex;align-items:center;gap:5px;${style}" onclick="app.switchBank('${b}')">${meta.logo} ${meta.label}</button>`
-        }).join('')
-            + `<button class="entre-contas-tab" onclick="app.switchBank('entre_contas')">🔁 Entre contas</button>`
+                const meta = BANK_META[b] || BANK_META.generico
+                const isActive = b === currentBank
+                // Cores expostas como CSS vars para o estado ativo
+                const styleVars = `--bank-color:${meta.color};--bank-bg:${meta.bg};--bank-text:${meta.textColor || meta.color}`
+                return `<button class="bank-tab ${b}${isActive ? ' active' : ''}" style="${styleVars}" onclick="app.switchBank('${b}')">${meta.logo} ${meta.label}</button>`
+            }).join('')
+        const entreContas = `<button class="entre-contas-tab" title="Movimentações entre contas" onclick="app.switchBank('entre_contas')">🔁</button>`
+        nav.innerHTML = `<div class="bank-nav-list">${tabs}</div>${entreContas}`
     }
 
     static _summaryForBank(month, bank) {
@@ -95,15 +93,17 @@ class Renderer {
         const emContaRows = rows.filter(r => r.hasBalance).sort((a, b) => b.emConta - a.emConta)
 
         const mkDonutSection = ({ id, items, valueKey, title, accentColor, bgColor, borderColor, emptyMsg }) => {
-            const sectionTotal = items.reduce((s, r) => s + r[valueKey], 0)
-            const legend = items.map(r => {
+            // Só lista bancos com movimento (esconde os zerados)
+            const visibleItems = items.filter(r => r[valueKey] > 0)
+            const sectionTotal = visibleItems.reduce((s, r) => s + r[valueKey], 0)
+            const legend = visibleItems.map(r => {
                 const meta = BANK_META[r.bank] || BANK_META.generico
                 const pct = sectionTotal > 0 ? Math.round(r[valueKey] / sectionTotal * 100) : 0
                 return `<div style="margin-bottom:10px">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
                   <span style="display:flex;align-items:center;gap:5px">
                     <span style="width:9px;height:9px;border-radius:50%;background:${meta.color};flex-shrink:0"></span>
-                    <span style="font-size:12px;color:var(--text2)">${meta.icon} ${meta.label}</span>
+                    <span style="font-size:12px;color:var(--text2)">${meta.label}</span>
                   </span>
                   <span style="font-size:12px;font-weight:600">${this.fmt(r[valueKey])} <span style="font-size:10px;color:var(--text3);font-weight:400">${pct}%</span></span>
                 </div>
@@ -112,7 +112,7 @@ class Renderer {
                 </div>
               </div>`
             }).join('')
-            const hasAnyValue = items.some(r => r[valueKey] > 0)
+            const hasAnyValue = visibleItems.length > 0
             const inner = hasAnyValue
                 ? `<div style="display:flex;gap:1.25rem;align-items:center;flex-wrap:wrap">
                 <div style="width:130px;height:130px;flex-shrink:0">
@@ -121,31 +121,30 @@ class Renderer {
                 <div style="flex:1;min-width:140px">${legend}</div>
               </div>`
                 : `<div style="font-size:12px;color:var(--text3);padding:1rem 0;text-align:center">${emptyMsg}</div>`
-            return `<div style="flex:1;min-width:240px;background:${bgColor};border-radius:var(--r);padding:1rem 1.1rem;border-top:3px solid ${borderColor}">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${accentColor};margin-bottom:4px">${title}</div>
+            return `<div style="flex:1;min-width:240px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.1rem">
+            <div style="font-size:13px;font-weight:600;color:${accentColor};margin-bottom:4px">${title}</div>
             <div style="font-size:22px;font-weight:700;color:var(--text);margin-bottom:14px;line-height:1">${hasAnyValue ? this.fmt(sectionTotal) : '—'}</div>
             ${inner}
           </div>`
         }
 
+        // Badge "hoje" / "futuro" — comparando com o mês corrente real
+        const todayMonth = new Date().toISOString().slice(0, 7)
+        let monthBadge = ''
+        if (month === todayMonth) monthBadge = '<span class="month-status-badge is-today">atual</span>'
+        else if (month > todayMonth) monthBadge = '<span class="month-status-badge is-future">futuro</span>'
+
         el.innerHTML = `<div class="overview-card is-active">
       <div class="overview-header">
         <div>
-          <div class="overview-kicker">Resumo geral</div>
-          <div class="overview-title">${this.monthLabel(month)}</div>
+          <div class="overview-title">${this.monthLabel(month)}${monthBadge ? ' ' + monthBadge : ''}</div>
+          ${total.hasBalance ? `<div class="overview-emconta">Saldo nas contas <strong>${this.fmt(total.emConta)}</strong></div>` : ''}
         </div>
         <div class="overview-month-nav">
-          <button class="month-btn" onclick="app.shiftMonth(-1)">‹</button>
-          <button class="month-btn" onclick="app.shiftMonth(1)">›</button>
-          <button class="overview-contas-btn" onclick="app.switchTab('analise')">📒 Minhas Contas<span class="contas-badge" id="contas-badge" style="display:none"></span></button>
+          <button class="overview-contas-btn" onclick="app.switchTab('analise')" title="Minhas Contas" aria-label="Minhas Contas">📒 Contas<span class="contas-badge" id="contas-badge" style="display:none"></span></button>
         </div>
       </div>
       ${hasAnyMovement ? `
-      ${total.hasBalance ? `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;padding:.55rem 1rem;background:var(--amber-bg);border-left:3px solid var(--amber);border-radius:var(--rs);margin-bottom:.75rem">
-        <span style="font-size:11px;font-weight:700;color:var(--amber-text);white-space:nowrap">🏦 Em conta</span>
-        <span style="font-size:15px;font-weight:700;color:var(--amber-text)">${this.fmt(total.emConta)}</span>
-        ${emContaRows.length > 1 ? `<span style="margin-left:auto;display:flex;gap:.6rem;flex-wrap:wrap">` + emContaRows.map(r => { const m = BANK_META[r.bank] || BANK_META.generico; return `<span style="font-size:11px;color:var(--amber-text);white-space:nowrap">${m.icon} ${m.label}: <strong>${this.fmt(r.emConta)}</strong></span>` }).join('') + `</span>` : ''}
-      </div>` : ''}
       ${(() => {
         const data = DataStore.load()
         const [y, mo] = month.split('-').map(Number)
@@ -166,37 +165,28 @@ class Renderer {
           const [, mm] = m.split('-')
           return { key: m, label: MONTH_SHORT[parseInt(mm) - 1], renda, gasto, invest, isCurrent: m === month }
         })
-        if (cols.every(c => c.renda === 0 && c.gasto === 0)) return ''
-        const mkCol = (c) => {
-          const border = c.isCurrent ? 'border:1.5px solid var(--border);background:var(--surface)' : 'border:1px solid var(--border);background:transparent;opacity:.85'
-          const badge = c.isCurrent ? `<span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);opacity:.7">atual</span>` : ''
-          const row = (icon, val, color) => `
-            <div style="margin-top:8px">
-              <div style="font-size:10px;color:var(--text3);margin-bottom:1px">${icon}</div>
-              <div style="font-size:12px;font-weight:700;color:${color}">${val > 0 ? this.fmt(val) : '<span style="color:var(--text3);font-weight:400">—</span>'}</div>
-            </div>`
-          return `<div style="flex:1;border-radius:10px;padding:10px 8px;${border}">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-              <span style="font-size:13px;font-weight:700;color:var(--text)">${c.label}</span>
-              ${badge}
-            </div>
-            ${row('Renda',     c.renda,  'var(--green-text)')}
-            ${row('Gasto',     c.gasto,  'var(--red-text)')}
-            ${row('Investido', c.invest, 'var(--purple-text)')}
-          </div>`
-        }
-        const open = localStorage.getItem('evolution_open') === '1'
-        return `<div style="background:var(--surface2);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:.75rem">
-          <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none" onclick="const b=document.getElementById('evolution-body');const open=b.style.display==='none';b.style.display=open?'flex':'none';this.querySelector('.evo-arrow').style.transform=open?'rotate(180deg)':'rotate(0deg)';localStorage.setItem('evolution_open',open?'1':'0')">
-            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">Evolução em 3 meses</span>
-            <span class="evo-arrow" style="font-size:12px;color:var(--text3);transition:transform .2s;transform:rotate(${open ? '180' : '0'}deg)">▾</span>
-          </div>
-          <div id="evolution-body" style="display:${open ? 'flex' : 'none'};gap:8px;margin-top:.75rem">${cols.map(mkCol).join('')}</div>
+        // Comparação textual com o mês imediatamente anterior
+        const current = cols.find(c => c.isCurrent)
+        const previous = cols.filter(c => !c.isCurrent).slice(-1)[0]
+        if (!current || !previous || current.gasto === 0 || previous.gasto === 0) return ''
+
+        const diff = current.gasto - previous.gasto
+        if (diff === 0) return ''
+        const absVal = this.fmt(Math.abs(diff))
+        const direction = diff > 0 ? 'a mais' : 'a menos'
+        const color = diff > 0 ? 'var(--red-text)' : 'var(--green-text)'
+        const arrow = diff > 0 ? '↑' : '↓'
+        const prevMonthIdx = parseInt(previous.key.split('-')[1], 10) - 1
+        const prevMonthName = (MONTH_NAMES[prevMonthIdx] || previous.label).toLowerCase()
+
+        return `<div class="evo-text">
+          <span class="evo-text-arrow" style="color:${color}">${arrow}</span>
+          Gastou <strong style="color:${color}">${absVal}</strong> ${direction} que ${prevMonthName}
         </div>`
       })()}
       <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:.75rem">
         ${mkDonutSection({ id: 'overviewDonutGasto',  items: gastoRows,  valueKey: 'gasto',     title: '💳 Gasto total',     accentColor: 'var(--red-text)',    bgColor: 'var(--red-bg)',    borderColor: 'var(--red)',    emptyMsg: 'Nenhum gasto registrado' })}
-        ${mkDonutSection({ id: 'overviewDonutInvest', items: investRows, valueKey: 'investido', title: '📈 Investido total', accentColor: 'var(--purple-text)', bgColor: 'var(--purple-bg)', borderColor: 'var(--purple)', emptyMsg: 'Nenhum investimento registrado' })}
+        ${total.investido > 0 ? mkDonutSection({ id: 'overviewDonutInvest', items: investRows, valueKey: 'investido', title: '📈 Investido total', accentColor: 'var(--purple-text)', bgColor: 'var(--purple-bg)', borderColor: 'var(--purple)', emptyMsg: 'Nenhum investimento registrado' }) : ''}
       </div>
       ${(() => {
           const allGastos = DataStore.getExpensesByMonth(month, null)
@@ -246,18 +236,49 @@ class Renderer {
                 </div>`}
               </div>`
           }
-          const mkCard = (title, entries, isFixed = false) => `
+          const fmt = this.fmt.bind(this)
+          const mkCard = (title, entries, isFixed = false) => {
+              const sorted = [...entries].sort((a, b) => b[1] - a[1])
+              // Agrupa categorias com valor < R$ 100 (só nas Variáveis)
+              // Só agrupa se houver pelo menos 2 categorias pequenas (senão não vale)
+              let mainEntries = sorted
+              let smallEntries = []
+              if (!isFixed) {
+                  const SMALL_THRESHOLD = 100
+                  const big = sorted.filter(([, v]) => v >= SMALL_THRESHOLD)
+                  const small = sorted.filter(([, v]) => v < SMALL_THRESHOLD)
+                  if (small.length >= 2) {
+                      mainEntries = big
+                      smallEntries = small
+                  }
+              }
+              const smallTotal = smallEntries.reduce((s, [, v]) => s + v, 0)
+              const smallHtml = smallEntries.length ? `
+                <details class="cat-small-details">
+                  <summary class="cat-small-summary">
+                    <span>+ ${smallEntries.length} categorias menores</span>
+                    <span><strong>${fmt(smallTotal)}</strong> <span class="chev">▾</span></span>
+                  </summary>
+                  <div class="cat-small-list">${smallEntries.map(e => mkRow(e, isFixed)).join('')}</div>
+                </details>` : ''
+              return `
             <div style="background:var(--surface2);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:.75rem">
-              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">${title} <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0">· clique para ver detalhes</span></div>
-              ${entries.sort((a,b) => b[1]-a[1]).map(e => mkRow(e, isFixed)).join('')}
+              <div style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:8px">${title}</div>
+              ${mainEntries.map(e => mkRow(e, isFixed)).join('')}
+              ${smallHtml}
             </div>`
+          }
           let result = ''
           if (Object.keys(fixoTotals).length > 0) result += mkCard('📌 Gastos Fixos', Object.entries(fixoTotals), true)
           if (Object.keys(varTotals).length > 0) result += mkCard('🔀 Gastos Variáveis', Object.entries(varTotals), false)
           return result
       })()}
-      ` : `<div class="empty" style="padding:1.25rem 1rem"><span class="empty-icon">📊</span>Nenhum dado consolidado para ${this.monthLabel(month)}.</div>`}
-      ${this._recurrenceSuggestionsHtml()}
+      ` : `<div class="overview-empty-card">
+        <span class="overview-empty-icon">📊</span>
+        <div class="overview-empty-title">Nenhum dado consolidado</div>
+        <div class="overview-empty-month">${this.monthLabel(month)}</div>
+        <div class="overview-empty-hint">← deslize para os lados para navegar entre meses →</div>
+      </div>`}
     </div>`
     }
 
@@ -405,7 +426,7 @@ class Renderer {
             }
             const mkCard = (title, map, isFixed = false) => `
                 <div style="background:var(--surface2);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:.75rem">
-                  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:8px">${title} <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0">· clique para ver detalhes</span></div>
+                  <div style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:8px">${title}</div>
                   ${Object.entries(map).sort((a, b) => b[1] - a[1]).map(e => mkRow(e, isFixed)).join('')}
                 </div>`
             if (Object.keys(catsFixo).length > 0) html += mkCard('📌 Gastos Fixos', catsFixo, true)
@@ -413,29 +434,6 @@ class Renderer {
         }
 
         document.getElementById('sec-resumo').innerHTML = html
-    }
-
-    static _recurrenceSuggestionsHtml() {
-        if (typeof RecurrenceDetector === 'undefined') return ''
-        const suggestions = RecurrenceDetector.detect()
-        if (!suggestions.length) return ''
-        const rows = suggestions.map(s => `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)">
-                <div style="flex:1;min-width:0;margin-right:10px">
-                    <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${this.esc(s.name)}</div>
-                    <div style="font-size:11px;color:var(--text3);margin-top:1px">~${this.fmt(s.amount)} · ${s.months.length} meses seguidos</div>
-                </div>
-                <div style="display:flex;gap:6px;flex-shrink:0">
-                    <button class="btn-secondary" style="font-size:11px;padding:4px 8px" onclick="app._dismissRecurrenceSuggestion('${this.jsAttr(s.key)}')">Ignorar</button>
-                    <button class="btn-primary" style="font-size:11px;padding:4px 8px" onclick="app._addRecurrenceSuggestion('${this.jsAttr(s.name)}',${s.amount.toFixed(2)})">+ Fixo</button>
-                </div>
-            </div>`).join('')
-        return `
-            <div style="background:var(--surface2);border-radius:var(--r);padding:1rem 1.1rem;margin-bottom:.75rem">
-                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:2px">💡 Possíveis contas fixas</div>
-                <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Esses gastos aparecem todo mês com valor similar.</div>
-                ${rows}
-            </div>`
     }
 
     static renderIncomes(month, bank, showForm) {
@@ -454,7 +452,7 @@ class Renderer {
           <div><div class="row-name">${this.esc(this.aliasName(i.name))}</div></div>
           <div class="row-right">
 <span class="amount" style="color:var(--green)">${this.fmt(i.amount)}</span>
-<button class="del-btn" onclick="app.removeIncome('${this.esc(i.id)}')">×</button>
+<button class="del-btn" onclick="app.removeIncome('${this.esc(i.id)}')" title="Excluir renda" aria-label="Excluir renda"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>
           </div>
         </div>`).join('')
 
@@ -473,10 +471,19 @@ class Renderer {
     }
 
     static renderExpenses(month, bank, showForm) {
-        const all = DataStore.getExpensesByMonth(month, bank)
+        const allRaw = DataStore.getExpensesByMonth(month, bank)
+        const query = (window.app?._expensesQuery || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+        const expanded = window.app?._expensesExpanded || {}
+        const PAGE = 10
+
+        const matchesQuery = (e) => {
+            if (!query) return true
+            const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+            return norm(e.name).includes(query) || norm(this.aliasName(e.name)).includes(query)
+        }
+        const all = allRaw.filter(matchesQuery)
+        // Só gastos reais nesta aba — investimentos e movimentações 'em conta' não são saídas
         const gastos = all.filter(e => Classifier.sectorOf(e) === 'gasto')
-        const investidos = all.filter(e => Classifier.sectorOf(e) === 'investido')
-        const emConta = all.filter(e => Classifier.sectorOf(e) === 'em_conta')
 
         const formHtml = showForm ? `<div class="form-row">
       <input class="inp" id="exp-name" placeholder="Descrição..." style="min-width:120px" oninput="app._suggestExpenseCategory()">
@@ -509,7 +516,11 @@ class Renderer {
                 const toISO = d => d.split('/').reverse().join('-')
                 return toISO(b.dateStr).localeCompare(toISO(a.dateStr))
             })
-            sorted.forEach(e => {
+            const isExpanded = expanded[sectorKey]
+            const visible = (!query && !isExpanded) ? sorted.slice(0, PAGE) : sorted
+            const remaining = sorted.length - visible.length
+
+            visible.forEach(e => {
                 const isFixo = e.type === 'fixo'
                 const datePart = e.dateStr ? e.dateStr.slice(0, 5) : ''
                 const subText = [datePart, this._catLabel(e.category)].filter(Boolean).join(' · ')
@@ -519,24 +530,37 @@ class Renderer {
 <div class="row-sub">${this.esc(subText)}</div>
           </div>
           <div class="row-right">
-${sectorKey === 'gasto' ? `<span class="badge" style="background:${isFixo ? 'var(--blue-bg)' : 'var(--amber-bg)'};color:${isFixo ? 'var(--blue-text)' : 'var(--amber-text)'}">${isFixo ? 'Fixo' : 'Variável'}</span>` : ''}
-<span class="badge" style="background:${sc.bg};color:${sc.text}">${e.resgate ? '↩ Resgate' : SECTOR_LABELS[sectorKey]}</span>
+${isFixo ? `<span class="badge" style="background:var(--blue-bg);color:var(--blue-text)">Fixo</span>` : ''}
 <span class="amount">${this.fmt(e.amount)}</span>
-<button class="del-btn" onclick="app.removeExpense('${this.esc(e.id)}')">×</button>
+<button class="del-btn" onclick="app.removeExpense('${this.esc(e.id)}')" title="Excluir gasto" aria-label="Excluir gasto"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>
           </div>
         </div>`
             })
+            if (remaining > 0) {
+                h += `<button class="show-more-btn" onclick="app._toggleExpensesGroup('${sectorKey}')">Ver mais ${remaining} ${SECTOR_LABELS[sectorKey].toLowerCase()}${remaining > 1 ? 's' : ''}</button>`
+            } else if (isExpanded && sorted.length > PAGE) {
+                h += `<button class="show-more-btn" onclick="app._toggleExpensesGroup('${sectorKey}')">Mostrar menos</button>`
+            }
             h += `<div class="subtotal"><span>Subtotal ${SECTOR_LABELS[sectorKey].toLowerCase()}</span><span>${this.fmt(sub)}</span></div>`
             return h
         }
 
-        let body = !all.length
-            ? `<div class="empty"><span class="empty-icon">↓</span>Nenhuma movimentação cadastrada para este mês</div>`
-            : renderGroup(gastos, 'gasto') + renderGroup(investidos, 'investido') + renderGroup(emConta, 'em_conta')
+        // Barra de busca: aparece só quando há volume (>10 itens) ou já existe query ativa
+        const showSearch = allRaw.length > 10 || !!query
+        const searchHtml = showSearch ? `<div class="expenses-search-wrap">
+            <input class="expenses-search" type="text" placeholder="🔍 Pesquisar movimentação..."
+                value="${this.esc(window.app?._expensesQuery || '')}"
+                oninput="app._setExpensesQuery(this.value)">
+            ${query ? `<button class="expenses-search-clear" onclick="app._setExpensesQuery('')" title="Limpar">×</button>` : ''}
+        </div>` : ''
 
-        const saidas = all.filter(e => e.sector !== 'entre_contas')
-        if (saidas.length) {
-            body += `<div class="total-row"><span>Total saídas</span><span>${this.fmt(saidas.reduce((s, e) => s + e.amount, 0))}</span></div>`
+        let body = searchHtml
+        if (!gastos.length && !query) {
+            body += `<div class="empty"><span class="empty-icon">↓</span>Nenhum gasto cadastrado para este mês</div>`
+        } else if (!gastos.length) {
+            body += `<div class="empty"><span class="empty-icon">🔍</span>Nenhum gasto encontrado para "${this.esc(window.app?._expensesQuery || '')}"</div>`
+        } else {
+            body += renderGroup(gastos, 'gasto')
         }
 
         document.getElementById('sec-gastos').innerHTML = `<div class="card">

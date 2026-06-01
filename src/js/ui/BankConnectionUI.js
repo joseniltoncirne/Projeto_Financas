@@ -13,6 +13,21 @@ Object.assign(FinanceApp.prototype, {
     }
   },
 
+  openBanksModal() {
+    // Fecha o dropdown caso esteja aberto
+    document.getElementById('user-dropdown')?.classList.remove('open')
+    const html = `
+      <div class="modal-header"><span>🏦 Bancos conectados</span></div>
+      <div class="modal-body" style="padding-top: 4px">
+        <button class="conn-add-btn" style="width:100%;margin-bottom:14px" onclick="app.openPluggyWidget()">🔗 Conectar banco</button>
+        <div id="connections-list"></div>
+      </div>`
+    this._openModal(html)
+    // Cada abertura começa na lista, não num detalhe anterior
+    this._selectedConnectionId = null
+    this.initBankConnections()
+  },
+
   _renderConnectionsList(connections) {
     const container = document.getElementById('connections-list')
     if (!container) return
@@ -29,57 +44,84 @@ Object.assign(FinanceApp.prototype, {
     }
 
     const statusLabel = {
-      ok:      { text: 'Sincronizado', color: 'var(--green-text)', bg: 'var(--green-bg)' },
-      syncing: { text: 'Sincronizando...', color: '#92400e', bg: '#fef3c7' },
-      error:   { text: 'Erro na última sync', color: '#991b1b', bg: '#fef2f2' },
+      ok:      { text: 'Sincronizado', color: 'var(--green-text)' },
+      syncing: { text: 'Sincronizando...', color: '#92400e' },
+      error:   { text: 'Erro na última sync', color: '#991b1b' },
     }
 
+    // Se o usuário selecionou um banco, mostra a view de detalhe
+    const selected = connections.find(c => c.itemId === this._selectedConnectionId)
+    if (selected) {
+      this._renderConnectionDetail(container, selected, statusLabel)
+      return
+    }
+
+    const chips = connections.map(conn => {
+      const meta = bankMeta[conn.bank] || bankMeta.generico
+      const statusClass = conn.status === 'error' ? 'is-error' : conn.status === 'syncing' ? 'is-syncing' : 'is-ok'
+      const titleSuffix = ' (' + (statusLabel[conn.status]?.text || 'Conectado') + ')'
+      return `<button class="bank-chip ${statusClass}" type="button" title="${meta.label}${titleSuffix}"
+        onclick="app._selectConnection('${conn.itemId}')">
+        ${meta.logo}
+        <span class="bank-chip-dot"></span>
+      </button>`
+    }).join('')
+
+    container.innerHTML = `
+      <div class="connections-compact-card">
+        <div class="bank-chips">${chips}</div>
+      </div>`
+  },
+
+  _renderConnectionDetail(container, conn, statusLabel) {
+    const meta = BANK_META[conn.bank] || BANK_META.generico
+    const st = statusLabel[conn.status] || statusLabel.ok
+    const isSyncing = conn.status === 'syncing'
     const fmt = dt => {
       if (!dt) return 'Nunca sincronizado'
       const d = new Date(dt)
       const diff = Date.now() - d.getTime()
       const mins = Math.floor(diff / 60000)
-      if (mins < 1) return 'Agora mesmo'
+      if (mins < 1) return 'agora mesmo'
       if (mins < 60) return `há ${mins} min`
       const hrs = Math.floor(mins / 60)
       if (hrs < 24) return `há ${hrs}h`
-      return `há ${Math.floor(hrs / 24)} dias`
+      return `há ${Math.floor(hrs / 24)}d`
     }
+    const labelEsc = (meta.label || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;')
 
-    container.innerHTML = connections.map(conn => {
-      const meta = bankMeta[conn.bank] || bankMeta.generico
-      const st = statusLabel[conn.status] || statusLabel.ok
-      return `
-        <div class="connection-item">
-          <div class="connection-info">
-            <span class="connection-icon">${meta.logo}</span>
+    container.innerHTML = `
+      <div class="conn-detail">
+        <button class="conn-detail-back" type="button" onclick="app._selectConnection(null)" title="Voltar">
+          ← Voltar
+        </button>
+        <div class="conn-detail-card">
+          <div class="conn-detail-header">
+            <span class="conn-detail-logo">${meta.logo}</span>
             <div>
-              <div class="connection-name">${meta.label}</div>
-              <div class="connection-status" style="color:${st.color}">
-                ${conn.status === 'syncing'
-                  ? `<span class="conn-spin">↻</span> ${st.text}`
-                  : `${st.text} · ${fmt(conn.lastSync)}`}
+              <div class="conn-detail-name">${meta.label}</div>
+              <div class="conn-detail-status" style="color:${st.color}">
+                ${isSyncing ? '<span class="conn-spin">↻</span> ' : ''}${st.text}${!isSyncing ? ' ' + fmt(conn.lastSync) : ''}
               </div>
             </div>
           </div>
-          <div class="connection-actions">
-            <button class="conn-btn conn-sync ${conn.status === 'syncing' ? 'conn-btn-disabled' : ''}"
-              title="Sincronizar agora"
-              onclick="app.syncBankConnection('${conn.itemId}')"
-              ${conn.status === 'syncing' ? 'disabled' : ''}>↻</button>
-            <div class="conn-menu-wrap" id="conn-menu-${conn.itemId}">
-              <button class="conn-btn conn-more" title="Opções"
-                onclick="app._toggleConnMenu('${conn.itemId}')">⋯</button>
-              <div class="conn-dropdown" id="conn-dropdown-${conn.itemId}" style="display:none">
-                <button class="conn-dropdown-item conn-dropdown-danger"
-                  onclick="app._toggleConnMenu('${conn.itemId}');app.disconnectBank('${conn.itemId}','${meta.label}')">
-                  Desconectar banco
-                </button>
-              </div>
-            </div>
+          <div class="conn-detail-actions">
+            <button class="btn-primary" ${isSyncing ? 'disabled' : ''}
+              onclick="app.syncBankConnection('${conn.itemId}')">
+              ${isSyncing ? '↻ Sincronizando...' : '↻ Sincronizar agora'}
+            </button>
+            <button class="btn-danger-outline"
+              onclick="app.disconnectBank('${conn.itemId}','${labelEsc}')">
+              🗑 Desconectar banco
+            </button>
           </div>
-        </div>`
-    }).join('')
+        </div>
+      </div>`
+  },
+
+  _selectConnection(itemId) {
+    this._selectedConnectionId = itemId
+    this.initBankConnections()
   },
 
   async openPluggyWidget() {
@@ -145,6 +187,41 @@ Object.assign(FinanceApp.prototype, {
     } catch {
       this._showToast('Erro ao sincronizar. Tente novamente.', 'toast-error')
       if (btn) { btn.disabled = false; btn.textContent = '↻' }
+    }
+  },
+
+  async syncAllBanks() {
+    let connections = []
+    try {
+      connections = await ApiClient.get('/api/connections')
+    } catch {
+      this._showToast('Erro ao buscar bancos.', 'toast-error')
+      return
+    }
+    if (!connections.length) {
+      this._showToast('Nenhum banco conectado.', 'toast-info')
+      return
+    }
+    const syncBtns = [document.getElementById('sync-all-btn-mobile')].filter(Boolean)
+    syncBtns.forEach(b => { b.disabled = true; b.textContent = '...' })
+    this._showToast('Sincronizando bancos...', 'toast-info')
+    let total = 0
+    let errors = 0
+    for (const conn of connections) {
+      try {
+        const res = await ApiClient.post(`/api/connections/${conn.itemId}/sync`, {})
+        total += res.synced || 0
+      } catch {
+        errors++
+      }
+    }
+    await DataStore._loadAll()
+    this.render()
+    syncBtns.forEach(b => { b.disabled = false; b.textContent = '↻ Sincronizar' })
+    if (errors > 0) {
+      this._showToast(`${total} novas transações. ${errors} banco(s) com erro.`, 'toast-error')
+    } else {
+      this._showToast(total > 0 ? `✓ ${total} transações novas importadas.` : '✓ Tudo atualizado.', 'toast-success')
     }
   },
 

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { authenticate } from '../middleware/auth.middleware.js'
 import { expenseRepository } from '../repositories/expense.repository.js'
+import { deletedExternalIdRepository } from '../repositories/deletedExternalId.repository.js'
 import {
   createExpenseSchema,
   updateExpenseSchema,
@@ -39,12 +40,30 @@ export async function expenseRoutes(app: FastifyInstance) {
   })
 
   // DELETE /api/expenses/:id
+  // Quando o gasto veio do sync (tem externalId), registra um tombstone para o sync
+  // futuro não re-importar a mesma transação. Tombstones em ('fixed:*') são ignorados.
   app.delete('/:id', { preHandler: authenticate }, async (request, reply) => {
     const userId = (request.user as { sub: string }).sub
     const { id } = request.params as { id: string }
+    const expense = await expenseRepository.findById(id, userId)
+    if (!expense) {
+      return reply.status(404).send({ statusCode: 404, message: 'Despesa não encontrada' })
+    }
     const result = await expenseRepository.delete(id, userId)
     if (result.count === 0) {
       return reply.status(404).send({ statusCode: 404, message: 'Despesa não encontrada' })
+    }
+    if (expense.externalId && !expense.externalId.startsWith('fixed:')) {
+      await deletedExternalIdRepository.insert({
+        userId,
+        externalId: expense.externalId,
+        kind: 'expense',
+        name: expense.name,
+        amount: expense.amount,
+        bank: expense.bank,
+        dateStr: expense.dateStr,
+        month: expense.month,
+      })
     }
     return reply.status(204).send()
   })

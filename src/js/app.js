@@ -5,7 +5,8 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 class FinanceApp {
     constructor() {
-        this.currentMonth = new Date().toISOString().slice(0, 7)
+        const _now = new Date()
+        this.currentMonth = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`
         this.currentTab = 'resumo'
         this.currentBank = null
         this.showIncForm = false
@@ -19,6 +20,29 @@ class FinanceApp {
         this.importPending = []
         this.currentUser = null
         this._bulkPending = null
+        // Estado de paginação/busca da aba Saídas
+        this._expensesQuery = ''
+        this._expensesExpanded = { gasto: false, investido: false, em_conta: false }
+    }
+
+    _setExpensesQuery(q) {
+        const trimmed = String(q || '')
+        if (this._expensesQuery === trimmed) return
+        this._expensesQuery = trimmed
+        // Re-renderiza só a aba Saídas (não precisa render geral inteiro)
+        Renderer.renderExpenses(this.currentMonth, this.currentBank, this.showExpForm)
+        // Mantém o foco no input após re-render
+        const inp = document.querySelector('.expenses-search')
+        if (inp) {
+            inp.focus()
+            const len = inp.value.length
+            inp.setSelectionRange(len, len)
+        }
+    }
+
+    _toggleExpensesGroup(sectorKey) {
+        this._expensesExpanded[sectorKey] = !this._expensesExpanded[sectorKey]
+        Renderer.renderExpenses(this.currentMonth, this.currentBank, this.showExpForm)
     }
 
     // ── Inicialização ───────────────────────────────────────────────────────────
@@ -32,6 +56,35 @@ class FinanceApp {
         // Sincroniza estado visual das abas se foi restaurado algo != default
         if (this.currentTab !== 'resumo') this.switchTab(this.currentTab)
         this.initBankConnections()
+        this._initMonthSwipe()
+    }
+
+    // ── Swipe horizontal pra trocar de mês (mobile) ──────────────────────────────
+    _initMonthSwipe() {
+        if (this._swipeInited) return
+        this._swipeInited = true
+        const main = document.getElementById('app-main')
+        if (!main) return
+        let startX = 0, startY = 0, target = null
+        main.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1) { startX = startY = 0; return }
+            startX = e.touches[0].clientX
+            startY = e.touches[0].clientY
+            target = e.target
+        }, { passive: true })
+        main.addEventListener('touchend', (e) => {
+            if (!startX) return
+            const t = e.changedTouches[0]
+            const dx = t.clientX - startX
+            const dy = t.clientY - startY
+            startX = startY = 0
+            // Ignora se: vertical dominou, swipe pequeno, ou veio de elemento com scroll/interativo próprio
+            if (Math.abs(dx) < 60) return
+            if (Math.abs(dy) > Math.abs(dx) * 0.6) return
+            if (target?.closest('.modal-overlay, .bank-nav, .bank-nav-list, .form-row, .expenses-search-wrap, input, textarea, select, button, [role="dialog"]')) return
+            // Direita → mês anterior, Esquerda → próximo
+            this.shiftMonth(dx > 0 ? -1 : 1)
+        }, { passive: true })
     }
 
     // ── Persistência de view (banco + aba + detail bank) ────────────────────────
@@ -131,6 +184,23 @@ class FinanceApp {
         this.showExpForm = false
         this.render()
         if (this.currentTab === 'analise') setTimeout(() => this.renderChecklist(), 50)
+        this._animateMonthChange(dir)
+    }
+
+    _animateMonthChange(dir) {
+        // dir > 0 → próximo mês: novo conteúdo desliza da direita pra esquerda
+        // dir < 0 → mês anterior: novo conteúdo desliza da esquerda pra direita
+        const targets = ['sec-overview', 'sec-resumo', 'sec-rendas', 'sec-gastos', 'sec-analise']
+        const cls = dir > 0 ? 'slide-from-right' : 'slide-from-left'
+        targets.forEach(id => {
+            const el = document.getElementById(id)
+            if (!el || el.style.display === 'none') return
+            // Reinicia animação removendo + readicionando classe
+            el.classList.remove('slide-from-right', 'slide-from-left')
+            void el.offsetWidth
+            el.classList.add(cls)
+            setTimeout(() => el.classList.remove(cls), 550)
+        })
     }
 
     // ── Render ──────────────────────────────────────────────────────────────────
@@ -326,10 +396,15 @@ class FinanceApp {
 
     async removeExpense(id) {
         const expense = DataStore.getExpenseById(id)
+        const isSynced = expense?.externalId && !expense.externalId.startsWith('fixed:')
+        const detailLine = expense ? `<div style="margin-bottom:8px"><strong>${Renderer.esc(expense.name)}</strong><br><span style="font-size:12px;color:var(--text3)">${Renderer.fmt(expense.amount)}${expense.dateStr ? ' · ' + expense.dateStr : ''}</span></div>` : ''
+        const historyNote = isSynced
+            ? `<div style="font-size:12px;color:var(--text3);padding:8px 10px;background:var(--surface2);border-radius:6px;line-height:1.4">Esse gasto veio do seu banco. Ele ficará no <strong>histórico de excluídos</strong> e não voltará nos próximos sync. Você pode restaurá-lo a qualquer momento por lá.</div>`
+            : ''
         const confirmed = await this._showConfirmModal({
-            title: 'Remover gasto',
-            message: expense ? `Remover <strong>${Renderer.esc(expense.name)}</strong> (${Renderer.fmt(expense.amount)})?` : 'Remover este gasto?',
-            confirmLabel: 'Remover',
+            title: 'Excluir permanentemente?',
+            message: `${detailLine}${historyNote}`,
+            confirmLabel: 'Excluir',
             dangerous: true,
         })
         if (!confirmed) return
@@ -522,6 +597,17 @@ class FinanceApp {
         box.className = 'modal'
         box.style.maxWidth = '520px'
         box.innerHTML = html
+        // Injeta botão ✕ no header se ainda não tiver
+        const header = box.querySelector('.modal-header')
+        if (header && !header.querySelector('.modal-close')) {
+            const closeBtn = document.createElement('button')
+            closeBtn.className = 'modal-close'
+            closeBtn.type = 'button'
+            closeBtn.setAttribute('aria-label', 'Fechar')
+            closeBtn.textContent = '×'
+            closeBtn.addEventListener('click', () => this._closeModal())
+            header.appendChild(closeBtn)
+        }
         overlay.appendChild(box)
         document.body.appendChild(overlay)
         this._modalOverlay = overlay

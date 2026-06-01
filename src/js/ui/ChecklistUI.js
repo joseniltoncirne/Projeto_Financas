@@ -178,10 +178,17 @@ Object.assign(FinanceApp.prototype, {
   },
 
   async _openAddFixedExpense() {
+    const now = new Date()
+    const todayMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const isPastMonth = this.currentMonth < todayMonth
+    const pastMonthBanner = isPastMonth ? `
+      <div style="margin-bottom:14px;padding:10px 12px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;font-size:12px;color:#92400e;line-height:1.5">
+        ⚠️ Você está adicionando uma conta a <strong>${this._monthLabel(this.currentMonth)}</strong>, que é um mês passado. Ela aparecerá apenas a partir desse mês.
+      </div>` : ''
     const html = `
       <div class="modal-header"><span>Nova conta fixa</span></div>
       <div class="modal-body fe-add-body">
-
+        ${pastMonthBanner}
         <div class="fe-field-group">
           <div class="fe-field-icon">📌</div>
           <div class="fe-field-content">
@@ -267,71 +274,17 @@ Object.assign(FinanceApp.prototype, {
       if (!parcelas || parcelas < 1) { this._showToast('Informe a quantidade de parcelas ou marque como permanente.', 'toast-error'); return }
       endMonth = this._addMonths(this.currentMonth, parcelas - 1)
     }
+    const now = new Date()
+    const todayMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const startMonth = this.currentMonth < todayMonth ? this.currentMonth : null
     try {
-      await ApiClient.post('/api/fixed-expenses', { name, amount, endMonth })
+      await ApiClient.post('/api/fixed-expenses', { name, amount, startMonth, endMonth })
       this._closeModal()
       await DataStore._loadAll()
       this.renderChecklist()
     } catch {
       this._showToast('Erro ao salvar.', 'toast-error')
     }
-  },
-
-  _dismissRecurrenceSuggestion(key) {
-    RecurrenceDetector.dismiss(key)
-    this.render()
-  },
-
-  async _addRecurrenceSuggestion(name, amount) {
-    const dismissKey = RecurrenceDetector._norm(name)
-    const html = `
-      <div class="modal-header"><span>Nova conta fixa</span></div>
-      <div class="modal-body fe-add-body">
-        <div class="fe-field-group">
-          <div class="fe-field-icon">📌</div>
-          <div class="fe-field-content">
-            <label class="fe-label">Nome da conta</label>
-            <input id="fe-name" class="form-input" value="${Renderer.esc(name)}">
-          </div>
-        </div>
-        <div class="fe-field-group">
-          <div class="fe-field-icon">💰</div>
-          <div class="fe-field-content">
-            <label class="fe-label">Valor previsto <span class="fe-optional">(opcional)</span></label>
-            <div class="fe-money-input">
-              <span class="fe-money-prefix">R$</span>
-              <input id="fe-amount" class="form-input" type="number" step="0.01" min="0" value="${amount.toFixed(2)}">
-            </div>
-          </div>
-        </div>
-        <div class="fe-field-group">
-          <div class="fe-field-icon">📅</div>
-          <div class="fe-field-content">
-            <label class="fe-label">Parcelas</label>
-            <div class="fe-parcelas-row" id="fe-parcelas-row">
-              <input id="fe-parcelas" class="form-input fe-parcelas-input" type="number" min="1" step="1" placeholder="Qtd" oninput="app._onParcelasInput()">
-              <span class="fe-parcelas-hint" id="fe-parcelas-hint">meses a cobrar</span>
-            </div>
-            <label class="fe-permanent-label">
-              <input type="checkbox" id="fe-permanent" onchange="app._onAddPermanentToggle()">
-              <span class="fe-permanent-check-icon"></span>
-              <span>Conta permanente (sem data de encerramento)</span>
-            </label>
-            <div id="fe-endmonth-preview" class="fe-endmonth-preview" style="display:none"></div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-secondary" onclick="app._closeModal()">Cancelar</button>
-        <button class="btn-primary" onclick="app._saveFixedExpenseFromSuggestion('${Renderer.jsAttr(dismissKey)}')">Adicionar conta</button>
-      </div>`
-    this._openModal(html)
-  },
-
-  async _saveFixedExpenseFromSuggestion(dismissKey) {
-    await this._saveFixedExpense()
-    RecurrenceDetector.dismiss(dismissKey)
-    this.render()
   },
 
   async _deleteFixedExpense(id) {
@@ -426,9 +379,6 @@ Object.assign(FinanceApp.prototype, {
         <div class="link-expense-list">
           ${listHtml}
         </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-secondary" onclick="app._closeModal()">Fechar</button>
       </div>`
     this._openModal(html)
   },

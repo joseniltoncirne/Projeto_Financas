@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { authenticate } from '../middleware/auth.middleware.js'
 import { prisma } from '../lib/prisma.js'
-import { autoLinkFixedExpenses } from '../services/import.service.js'
 
 function normalizeTrigger(name: string): string {
   return name
@@ -16,6 +15,7 @@ function normalizeTrigger(name: string): string {
 const createSchema = z.object({
   name: z.string().min(1),
   amount: z.number().positive().optional(),
+  startMonth: z.string().regex(/^\d{4}-\d{2}$/).optional().nullable(),
   endMonth: z.string().regex(/^\d{4}-\d{2}$/).optional().nullable(),
 })
 
@@ -44,17 +44,22 @@ export async function fixedExpenseRoutes(app: FastifyInstance) {
     const userId = (request.user as { sub: string }).sub
     const { month } = (request.query as { month?: string })
 
-    // Limite superior: só contas criadas até o final do mês consultado
+    // Limite superior: só contas cuja startMonth (ou createdAt) seja até o mês consultado
     const createdBefore = month
       ? new Date(`${month}-01T00:00:00.000Z`)
       : undefined
     if (createdBefore) createdBefore.setMonth(createdBefore.getMonth() + 1)
 
-    // Retorna contas ativas criadas até o mês (e não encerradas antes) + contas inativas com pagamento no mês (histórico)
+    // Retorna contas ativas começando até o mês (e não encerradas antes) + contas inativas com pagamento no mês (histórico)
     const items = await prisma.fixedExpense.findMany({
       where: {
         userId,
-        ...(createdBefore ? { createdAt: { lt: createdBefore } } : {}),
+        ...(month ? {
+          OR: [
+            { startMonth: { lte: month } },
+            { startMonth: null, createdAt: { lt: createdBefore } },
+          ],
+        } : {}),
         OR: [
           {
             active: true,
@@ -72,9 +77,9 @@ export async function fixedExpenseRoutes(app: FastifyInstance) {
   // POST /api/fixed-expenses
   app.post('/', { preHandler: authenticate }, async (request, reply) => {
     const userId = (request.user as { sub: string }).sub
-    const { name, amount, endMonth } = createSchema.parse(request.body)
+    const { name, amount, startMonth, endMonth } = createSchema.parse(request.body)
     const item = await prisma.fixedExpense.create({
-      data: { userId, name, amount, endMonth: endMonth ?? null },
+      data: { userId, name, amount, startMonth: startMonth ?? null, endMonth: endMonth ?? null },
       include: { payments: true },
     })
     return reply.status(201).send(item)
@@ -220,8 +225,9 @@ export async function fixedExpenseRoutes(app: FastifyInstance) {
           where: { id },
           data: { autoLinkName: normalizeTrigger(linkedExpense.name) },
         })
-        // Tenta auto-vincular em meses onde já existam transações
-        autoLinkFixedExpenses(userId, [month]).catch(() => {})
+        // Não chama autoLinkFixedExpenses para o mês atual — o vínculo já está sendo
+        // criado manualmente nesta requisição. Meses futuros serão auto-vinculados
+        // durante o próximo sync/importação.
       }
     } else {
       // Cria gasto placeholder — marcado com externalId para identificação futura
