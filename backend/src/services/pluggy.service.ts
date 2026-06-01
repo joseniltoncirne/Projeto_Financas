@@ -109,7 +109,9 @@ export const PluggyService = {
 
   async createConnectToken(itemId?: string): Promise<string> {
     const apiKey = await this.getApiKey()
-    const body: Record<string, unknown> = {}
+    const body: Record<string, unknown> = {
+      products: ['ACCOUNTS', 'CREDIT_CARDS'],
+    }
     if (itemId) body.itemId = itemId
 
     const data = await pluggyFetch<{ accessToken: string }>('/connect_token', {

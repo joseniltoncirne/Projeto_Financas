@@ -31,6 +31,7 @@ export interface MappedTransaction {
   isIncome: boolean
   isResgate: boolean
   isInternal: boolean
+  isCredit: boolean
   sector: 'gasto' | 'investido' | 'entre_contas'
   category: string | null
   type: 'fixo' | 'variavel'
@@ -147,6 +148,17 @@ function mapPluggyCategory(t: PluggyTransaction): string | null {
   return null
 }
 
+// Filtra apenas pagamentos recebidos pelo cartão — dinheiro que ENTROU no cartão
+// para quitar a fatura. Esses não são gastos, são o oposto.
+function isCreditCardPayment(t: PluggyTransaction): boolean {
+  const desc = (t.description || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const paymentKw = [
+    'pagamento recebido', 'pagamento de fatura', 'pagamento fatura',
+    'saldo adicionado', 'pagamento automatico',
+  ]
+  return paymentKw.some(kw => desc.includes(kw))
+}
+
 export const SyncService = {
   mapTransaction(
     t: PluggyTransaction,
@@ -199,6 +211,7 @@ export const SyncService = {
       isIncome: classified.isIncome,
       isResgate: classified.isResgate,
       isInternal,
+      isCredit: false, // sobrescrito pelo syncItem para transações de cartão
       sector,
       category,
       type: 'variavel',
@@ -243,7 +256,6 @@ export const SyncService = {
 
       console.log(`[sync] itemId=${itemId} from=${from.toISOString()} to=${to.toISOString()} (lastSync was ${conn.lastSync ?? 'null → 90 dias'})`)
 
-      const allMapped: MappedTransaction[] = []
       const accounts = await PluggyService.getAccounts(itemId)
 
       // Se banco não foi identificado no momento da conexão, tenta detectar:
@@ -266,11 +278,16 @@ export const SyncService = {
 
       const currentMonth = new Date().toISOString().slice(0, 7)
 
-      for (const account of accounts) {
-        if (account.type !== 'BANK') continue
+      // Coleta separado por origem para dedup cross-conta
+      const bankMapped: MappedTransaction[] = []
+      const creditMapped: MappedTransaction[] = []
 
-        // Salva o saldo atual da conta corrente para o mês corrente
-        if (account.balance != null) {
+      for (const account of accounts) {
+        const isCreditCard = account.type === 'CREDIT'
+        if (account.type !== 'BANK' && !isCreditCard) continue
+
+        // Salva o saldo atual da conta corrente (não do cartão) para o mês corrente
+        if (account.type === 'BANK' && account.balance != null) {
           await prisma.balance.upsert({
             where: { userId_month_bank: { userId, month: currentMonth, bank } },
             create: { userId, month: currentMonth, bank, value: account.balance },
@@ -281,11 +298,39 @@ export const SyncService = {
         const transactions = await PluggyService.getTransactions(account.id, from, to)
 
         for (const t of transactions) {
-          const isIncome = t.type === 'CREDIT'
-          const mapped = this.mapTransaction(t, bank, isIncome, userName, rulesMap, amountRulesMap, userCpf)
-          allMapped.push(mapped)
+          if (isCreditCard) {
+            // Ignora lançamentos internos do cartão: pagamentos recebidos, faturas,
+            // encargos contábeis e IOF — não são compras reais do usuário.
+            if (isCreditCardPayment(t)) continue
+            const mapped = { ...this.mapTransaction(t, bank, false, userName, rulesMap, amountRulesMap, userCpf), isCredit: true }
+            creditMapped.push(mapped)
+          } else {
+            const isIncome = t.type === 'CREDIT'
+            const mapped = this.mapTransaction(t, bank, isIncome, userName, rulesMap, amountRulesMap, userCpf)
+            bankMapped.push(mapped)
+          }
         }
       }
+
+      // Dedup cross-conta: alguns bancos (ex: Nubank) retornam compras do cartão tanto
+      // na conta corrente (BANK) quanto no cartão (CREDIT). Quando isso ocorre, preferimos
+      // a versão do cartão (mais detalhada) e descartamos a da conta corrente.
+      // Usamos fingerprint (name+amount+dateStr) APENAS para comparação entre origens —
+      // duplicatas legítimas dentro da mesma conta não são afetadas.
+      const creditFingerprints = new Set(
+        creditMapped.map(t => `${t.name}::${t.amount}::${t.dateStr}`)
+      )
+      const filteredBankMapped = creditMapped.length > 0
+        ? bankMapped.filter(t => !creditFingerprints.has(`${t.name}::${t.amount}::${t.dateStr}`))
+        : bankMapped
+
+      // Dedup por externalId dentro de cada origem (segurança)
+      const seenIds = new Set<string>()
+      const allMapped = [...filteredBankMapped, ...creditMapped].filter(t => {
+        if (seenIds.has(t.externalId)) return false
+        seenIds.add(t.externalId)
+        return true
+      })
 
       const result = await importService.bulkImportExternal(userId, allMapped, bank)
 

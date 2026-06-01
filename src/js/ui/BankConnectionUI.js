@@ -110,6 +110,11 @@ Object.assign(FinanceApp.prototype, {
               onclick="app.syncBankConnection('${conn.itemId}')">
               ${isSyncing ? '↻ Sincronizando...' : '↻ Sincronizar agora'}
             </button>
+            <button class="btn-secondary" ${isSyncing ? 'disabled' : ''}
+              onclick="app.forceResyncBank('${conn.itemId}','${labelEsc}')"
+              title="Apaga todas as transações deste banco e reimporta os últimos 90 dias do zero">
+              🔄 Re-sincronizar do zero
+            </button>
             <button class="btn-danger-outline"
               onclick="app.disconnectBank('${conn.itemId}','${labelEsc}')">
               🗑 Desconectar banco
@@ -187,6 +192,27 @@ Object.assign(FinanceApp.prototype, {
     } catch {
       this._showToast('Erro ao sincronizar. Tente novamente.', 'toast-error')
       if (btn) { btn.disabled = false; btn.textContent = '↻' }
+    }
+  },
+
+  async forceResyncBank(itemId, bankLabel) {
+    const confirmed = await this._showConfirmModal({
+      title: 'Re-sincronizar do zero?',
+      message: `Isso vai apagar todas as transações importadas da <strong>${Renderer.esc(bankLabel)}</strong> e reimportar os últimos 90 dias. Transações adicionadas manualmente não são afetadas.`,
+      confirmLabel: 'Re-sincronizar',
+      dangerous: true,
+    })
+    if (!confirmed) return
+    try {
+      this._showToast('Re-sincronizando...', 'toast-info')
+      const res = await ApiClient.post(`/api/connections/${itemId}/sync?force=true`, {})
+      await DataStore._loadAll()
+      this.render()
+      await this.initBankConnections()
+      const msg = res.synced > 0 ? `✓ ${res.synced} transações reimportadas.` : '✓ Re-sync concluído — nenhuma transação nova.'
+      this._showToast(msg, 'toast-success')
+    } catch {
+      this._showToast('Erro ao re-sincronizar.', 'toast-error')
     }
   },
 

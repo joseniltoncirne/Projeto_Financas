@@ -155,24 +155,22 @@ export async function fixedExpenseRoutes(app: FastifyInstance) {
       await prisma.expense.deleteMany({ where: { id: { in: toDelete } } })
     }
 
-    // Reverte gastos reais do mês atual em diante para variavel e apaga FixedExpensePayments
-    const futurePayments = await prisma.fixedExpensePayment.findMany({
-      where: { fixedExpenseId: id, month: { gte: currentMonth } },
-      select: { id: true, expenseId: true },
+    // Reverte TODOS os gastos reais vinculados (passados e futuros) para variavel
+    const allPayments = await prisma.fixedExpensePayment.findMany({
+      where: { fixedExpenseId: id },
+      select: { expenseId: true },
     })
-    const realExpenseIds = futurePayments.map(p => p.expenseId).filter(Boolean) as string[]
-    if (realExpenseIds.length) {
+    const allLinkedIds = allPayments.map(p => p.expenseId).filter(Boolean) as string[]
+    if (allLinkedIds.length) {
       await prisma.expense.updateMany({
-        where: { id: { in: realExpenseIds }, userId, NOT: { externalId: { startsWith: 'fixed:' } } },
+        where: { id: { in: allLinkedIds }, userId, NOT: { externalId: { startsWith: 'fixed:' } } },
         data: { type: 'variavel', category: 'outros' },
       })
     }
-    // Apaga os FixedExpensePayment do mês atual em diante — past months ficam para histórico
-    if (futurePayments.length) {
-      await prisma.fixedExpensePayment.deleteMany({
-        where: { id: { in: futurePayments.map(p => p.id) } },
-      })
-    }
+    // Apaga TODOS os pagamentos da conta
+    await prisma.fixedExpensePayment.deleteMany({
+      where: { fixedExpenseId: id },
+    })
 
     // Remove a categoria fixa
     await prisma.category.deleteMany({ where: { userId, key: categoryKey, isFixed: true } })
@@ -218,12 +216,15 @@ export async function fixedExpenseRoutes(app: FastifyInstance) {
       // Aprende o nome da transação para auto-vincular em meses futuros
       const linkedExpense = await prisma.expense.findFirst({
         where: { id: finalExpenseId, userId },
-        select: { name: true },
+        select: { name: true, amount: true },
       })
       if (linkedExpense && !fixedExpense.autoLinkName) {
         await prisma.fixedExpense.update({
           where: { id },
-          data: { autoLinkName: normalizeTrigger(linkedExpense.name) },
+          data: {
+            autoLinkName: normalizeTrigger(linkedExpense.name),
+            autoLinkAmount: linkedExpense.amount,
+          },
         })
         // Não chama autoLinkFixedExpenses para o mês atual — o vínculo já está sendo
         // criado manualmente nesta requisição. Meses futuros serão auto-vinculados

@@ -83,8 +83,10 @@ Object.assign(FinanceApp.prototype, {
         if (!confirmed) return
         try {
             await ApiClient.delete(`/api/deleted-external-ids/${id}`)
-            this._showToast('✓ Item restaurado. Próximo sync trará de volta.', 'toast-success')
+            await DataStore._loadAll()
+            this.render()
             this._loadDeletedHistory()
+            this._showToast('✓ Gasto restaurado e disponível para vincular.', 'toast-success')
         } catch (e) {
             this._showToast('Erro ao restaurar.', 'toast-error')
         }

@@ -89,7 +89,10 @@ Object.assign(FinanceApp.prototype, {
 
         const mkRowSingle = (e) => `<div class="row">
             <div>
-                <div class="row-name">${esc(Renderer.aliasName(e.name))}</div>
+                <div style="display:flex;align-items:center;gap:5px">
+                    <div class="row-name">${esc(Renderer.aliasName(e.name))}</div>
+                    ${aliasBtn(e)}
+                </div>
                 <div class="row-sub">${e.dateStr || ''}</div>
                 ${mkCatSelect(e)}
                 ${pinBtn(e)}
@@ -99,7 +102,6 @@ Object.assign(FinanceApp.prototype, {
                     <span class="amount">${fmt(e.amount)}</span>
                     ${delBtn(e)}
                 </div>
-                ${aliasBtn(e)}
             </div>
         </div>`
 
@@ -143,7 +145,8 @@ Object.assign(FinanceApp.prototype, {
     },
 
     showSectorDetail(sector) {
-        const items = DataStore.getExpensesByMonth(this.currentMonth, this.currentBank).filter(e => Classifier.sectorOf(e) === sector)
+        const items = DataStore.getExpensesByMonth(this.currentMonth, this.currentBank)
+            .filter(e => Classifier.sectorOf(e) === sector && !e.isCredit)
         const [y, mo] = this.currentMonth.split('-')
         const monthName = `${MONTH_NAMES[parseInt(mo) - 1]} ${y}`
         const isInvest = sector === 'investido'
@@ -253,12 +256,12 @@ Object.assign(FinanceApp.prototype, {
         let items
         if (bank) {
             items = DataStore.getExpensesByMonth(month, bank)
-                .filter(e => Classifier.sectorOf(e) === 'gasto' && (e.category || 'outros') === category)
+                .filter(e => Classifier.sectorOf(e) === 'gasto' && !e.isCredit && (e.category || 'outros') === category)
         } else {
             const banks = DataStore.getBanksWithData().filter(b => b !== 'entre_contas')
             items = banks.flatMap(b =>
                 DataStore.getExpensesByMonth(month, b)
-                    .filter(e => Classifier.sectorOf(e) === 'gasto' && (e.category || 'outros') === category)
+                    .filter(e => Classifier.sectorOf(e) === 'gasto' && !e.isCredit && (e.category || 'outros') === category)
             )
         }
 
@@ -294,6 +297,40 @@ Object.assign(FinanceApp.prototype, {
         }
 
         this._catDetailState = { category, bank, bankArg, items, label, color, month }
+        const searchWrap = document.getElementById('detail-search-wrap')
+        const searchEl = document.getElementById('detail-search')
+        if (items.length > 5) {
+            searchWrap.style.display = 'block'
+            searchEl.value = ''
+        } else {
+            searchWrap.style.display = 'none'
+        }
+        document.getElementById('detail-body').innerHTML = html
+        document.getElementById('detail-overlay').classList.remove('hidden')
+    },
+
+    showCreditCardDetail(month, bank) {
+        const fmt = Renderer.fmt.bind(Renderer)
+        const [y, mo] = month.split('-')
+        const monthName = `${MONTH_NAMES[parseInt(mo) - 1]} ${y}`
+        const items = DataStore.getExpensesByMonth(month, bank || null)
+            .filter(e => e.isCredit && e.sector === 'gasto')
+        const total = items.reduce((s, e) => s + e.amount, 0)
+
+        document.getElementById('detail-title').innerHTML =
+            `💳 Cartão de Crédito — ${monthName}`
+
+        const { mkGroupedList } = this._mkCategoryDetailHelpers('cartao_credito', bank || '')
+
+        let html = ''
+        if (!items.length) {
+            html = `<div class="empty"><span class="empty-icon">💳</span>Nenhuma compra no cartão este mês.</div>`
+        } else {
+            html += mkGroupedList(items)
+            html += `<div class="total-row"><span>Total no cartão</span><span>${fmt(total)}</span></div>`
+        }
+
+        this._catDetailState = { category: '__credit__', bank, bankArg: bank || '', items, label: 'Cartão de Crédito', color: '#6366f1', month }
         const searchWrap = document.getElementById('detail-search-wrap')
         const searchEl = document.getElementById('detail-search')
         if (items.length > 5) {

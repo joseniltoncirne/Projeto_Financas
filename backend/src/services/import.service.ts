@@ -12,6 +12,14 @@ function normalizeTrigger(name: string): string {
     .trim()
 }
 
+// Retorna proporção de palavras do trigger presentes no candidato (0–1)
+function wordMatchScore(trigger: string, candidate: string): number {
+  const words = trigger.split(' ').filter(Boolean)
+  if (!words.length) return 0
+  const matched = words.filter(w => candidate.includes(w)).length
+  return matched / words.length
+}
+
 function toCategoryKey(name: string): string {
   return name
     .toLowerCase()
@@ -40,16 +48,29 @@ export async function autoLinkFixedExpenses(userId: string, months: string[]): P
 
     const expenses = await prisma.expense.findMany({
       where: { userId, month, sector: 'gasto' },
-      select: { id: true, name: true, externalId: true },
+      select: { id: true, name: true, amount: true, externalId: true },
     })
 
     for (const fe of fesForMonth) {
       const trigger = fe.autoLinkName!
-      const match = expenses.find(e =>
-        // Exclui placeholders gerados pelo próprio sistema
-        !(e.externalId?.startsWith('fixed:')) &&
-        normalizeTrigger(e.name).includes(trigger)
-      )
+      const SCORE_THRESHOLD = 0.8
+
+      // Candidatos com score ≥ 80% de palavras em comum
+      const candidates = expenses
+        .filter(e => !e.externalId?.startsWith('fixed:'))
+        .map(e => ({ e, score: wordMatchScore(trigger, normalizeTrigger(e.name)) }))
+        .filter(({ score }) => score >= SCORE_THRESHOLD)
+
+      if (!candidates.length) continue
+
+      // Desempate: prefere o candidato cujo valor está mais próximo do autoLinkAmount
+      const match = fe.autoLinkAmount != null
+        ? candidates.reduce((best, cur) =>
+            Math.abs(cur.e.amount - fe.autoLinkAmount!) < Math.abs(best.e.amount - fe.autoLinkAmount!)
+              ? cur : best
+          ).e
+        : candidates[0].e
+
       if (!match) continue
 
       const categoryKey = toCategoryKey(fe.name)
@@ -188,6 +209,7 @@ export const importService = {
         bank,
         isResgate: t.isResgate,
         isInternal: t.isInternal,
+        isCredit: t.isCredit ?? false,
         dateStr: t.dateStr,
         externalId: t.externalId,
       }))

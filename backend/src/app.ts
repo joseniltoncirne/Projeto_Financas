@@ -18,6 +18,7 @@ import { aliasRoutes } from './routes/aliases.js'
 import { connectionRoutes } from './routes/connections.js'
 import { webhookRoutes } from './routes/webhooks.js'
 import { fixedExpenseRoutes } from './routes/fixed-expenses.js'
+import { deletedExternalIdRoutes } from './routes/deleted-external-ids.js'
 
 export async function buildApp() {
   const app = Fastify({
@@ -103,6 +104,7 @@ export async function buildApp() {
   await app.register(aliasRoutes, { prefix: '/api/aliases' })
   await app.register(connectionRoutes, { prefix: '/api/connections' })
   await app.register(fixedExpenseRoutes, { prefix: '/api/fixed-expenses' })
+  await app.register(deletedExternalIdRoutes, { prefix: '/api/deleted-external-ids' })
   await app.register(webhookRoutes, { prefix: '/webhooks' })
 
   // ── Health check ────────────────────────────────────────────────────────────

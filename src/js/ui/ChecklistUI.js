@@ -57,7 +57,7 @@ Object.assign(FinanceApp.prototype, {
                     </div>
                     ${item.amount ? `<div class="checklist-amount">Previsto: ${Renderer.fmt(item.amount)}</div>` : ''}
                     ${item.endMonth ? (() => {
-                      const startMonth = item.createdAt.slice(0, 7)
+                      const startMonth = item.startMonth || item.createdAt.slice(0, 7)
                       const total = this._monthSpan(startMonth, item.endMonth)
                       const current = Math.max(1, Math.min(total, this._monthSpan(startMonth, month)))
                       return `<div class="checklist-endmonth">parcela ${current}/${total}</div>`

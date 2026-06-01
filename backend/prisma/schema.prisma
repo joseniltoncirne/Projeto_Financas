@@ -56,6 +56,7 @@ model Expense {
   bank       String
   isResgate  Boolean  @default(false)
   isInternal Boolean  @default(false)
+  isCredit   Boolean  @default(false)
   dateStr    String?
   externalId String?
   createdAt  DateTime @default(now())
@@ -160,8 +161,9 @@ model FixedExpense {
   active       Boolean  @default(true)
   startMonth   String?
   endMonth     String?
-  autoLinkName String?
-  createdAt    DateTime @default(now())
+  autoLinkName   String?
+  autoLinkAmount Float?
+  createdAt      DateTime @default(now())
 
   user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   payments FixedExpensePayment[]

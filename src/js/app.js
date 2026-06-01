@@ -167,12 +167,13 @@ class FinanceApp {
             return
         }
 
-        // Banco específico: apenas Resumo / Entradas / Saídas
-        document.querySelectorAll('#bank-sections .tab').forEach((b, i) => {
-            b.classList.toggle('active', ['resumo', 'rendas', 'gastos'][i] === tab)
+        // Banco específico: Resumo / Entradas / Saídas / Cartão
+        document.querySelectorAll('#bank-sections .tab').forEach(b => {
+            const t = b.getAttribute('onclick')?.match(/'(\w+)'/)?.[1]
+            if (t) b.classList.toggle('active', t === tab)
         })
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'))
-        document.getElementById('sec-' + tab).classList.add('active')
+        document.getElementById('sec-' + tab)?.classList.add('active')
         this.render()
     }
 
@@ -219,6 +220,9 @@ class FinanceApp {
             document.getElementById('sec-resumo').innerHTML = '<div class="bank-empty"><span class="bank-empty-icon">🏦</span>Importe um extrato para começar.<br><span style="font-size:12px">Arraste um arquivo .CSV, .OFX ou .PDF acima.</span></div>'
             document.getElementById('sec-rendas').innerHTML = ''
             document.getElementById('sec-gastos').innerHTML = ''
+            document.getElementById('sec-cartao').innerHTML = ''
+            const tabCartao = document.getElementById('tab-cartao')
+            if (tabCartao) tabCartao.style.display = 'none'
             return
         }
 
@@ -239,6 +243,7 @@ class FinanceApp {
         Renderer.renderSummary(this.currentMonth, this.currentBank)
         Renderer.renderIncomes(this.currentMonth, this.currentBank, this.showIncForm)
         Renderer.renderExpenses(this.currentMonth, this.currentBank, this.showExpForm)
+        Renderer.renderCreditCard(this.currentMonth, this.currentBank)
     }
 
     _renderDetailBankPicker(banks) {

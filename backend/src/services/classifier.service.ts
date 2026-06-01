@@ -291,6 +291,7 @@ export const ClassifierService = {
     const shouldCategorize = !isIncome && !resgate && !internal && sector === 'gasto'
     const category = shouldCategorize ? this.category(memo, amount, rules, amountRules) : null
 
+
     return {
       isIncome: isIncome && !resgate,
       isResgate: resgate,

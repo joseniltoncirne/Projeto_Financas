@@ -44,8 +44,8 @@ class DataStore {
         return {
             id: e.id, month: e.month, name: e.name, amount: e.amount,
             type: e.type, category: e.category || null, sector: e.sector, bank: e.bank,
-            resgate: e.isResgate, internal: e.isInternal, dateStr: e.dateStr || null,
-            externalId: e.externalId || null,
+            resgate: e.isResgate, internal: e.isInternal, isCredit: e.isCredit || false,
+            dateStr: e.dateStr || null, externalId: e.externalId || null,
         }
     }
 

@@ -61,6 +61,14 @@ export async function connectionRoutes(app: FastifyInstance) {
 
     const conn = await connectionRepository.create(userId, itemId, bank)
 
+    // Limpa transações externas antigas deste banco antes do sync inicial.
+    // Evita duplicatas quando o usuário desconecta e reconecta (novo itemId,
+    // mesmos dados mas externalIds diferentes).
+    await prisma.$transaction([
+      prisma.income.deleteMany({ where: { userId, bank, externalId: { not: null } } }),
+      prisma.expense.deleteMany({ where: { userId, bank, externalId: { not: null } } }),
+    ])
+
     // Dispara sync inicial em background (não bloqueia a resposta)
     SyncService.syncItem(userId, itemId).catch(err =>
       app.log.error({ err, itemId }, 'Erro no sync inicial'),

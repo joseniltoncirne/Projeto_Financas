@@ -43,7 +43,11 @@ class Renderer {
     static _summaryForBank(month, bank) {
         const incomes = DataStore.getIncomesByMonth(month, bank)
         const allExpenses = DataStore.getExpensesByMonth(month, bank)
-        const expenses = allExpenses.filter(e => !(e.externalId && e.externalId.startsWith('fixed:')))
+        // Exclui compras de cartão (isCredit) do total — o gasto real é a fatura paga na conta
+        const expenses = allExpenses.filter(e =>
+            !(e.externalId && e.externalId.startsWith('fixed:')) &&
+            !e.isCredit
+        )
         const renda = incomes.reduce((s, i) => s + i.amount, 0)
         const gasto = expenses
             .filter(e => Classifier.sectorOf(e) === 'gasto' && e.sector !== 'entre_contas')
@@ -190,7 +194,7 @@ class Renderer {
       </div>
       ${(() => {
           const allGastos = DataStore.getExpensesByMonth(month, null)
-              .filter(e => Classifier.sectorOf(e) === 'gasto' && e.sector !== 'entre_contas')
+              .filter(e => Classifier.sectorOf(e) === 'gasto' && e.sector !== 'entre_contas' && !e.isCredit)
           const fixoTotals = {}, varTotals = {}
           allGastos.forEach(e => {
               const key = e.category || 'outros'
@@ -321,7 +325,8 @@ class Renderer {
 
     static renderSummary(month, bank) {
         const incomes = DataStore.getIncomesByMonth(month, bank)
-        const expenses = DataStore.getExpensesByMonth(month, bank)
+        const allExpenses = DataStore.getExpensesByMonth(month, bank)
+        const expenses = allExpenses.filter(e => !e.isCredit)
         const totalInc = incomes.reduce((s, i) => s + i.amount, 0)
         const totalGasto = expenses.filter(e => Classifier.sectorOf(e) === 'gasto' && e.sector !== 'entre_contas').reduce((s, e) => s + e.amount, 0)
         const totalAplic = expenses.filter(e => Classifier.sectorOf(e) === 'investido' && !e.resgate).reduce((s, e) => s + e.amount, 0)
@@ -481,7 +486,8 @@ class Renderer {
             const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
             return norm(e.name).includes(query) || norm(this.aliasName(e.name)).includes(query)
         }
-        const all = allRaw.filter(matchesQuery)
+        // Exclui compras de cartão (isCredit) das Saídas — o gasto real é a fatura paga na conta
+        const all = allRaw.filter(e => matchesQuery(e) && !e.isCredit)
         // Só gastos reais nesta aba — investimentos e movimentações 'em conta' não são saídas
         const gastos = all.filter(e => Classifier.sectorOf(e) === 'gasto')
 
@@ -575,15 +581,75 @@ ${isFixo ? `<span class="badge" style="background:var(--blue-bg);color:var(--blu
     </div>`
     }
 
+    static renderCreditCard(month, bank) {
+        const el = document.getElementById('sec-cartao')
+        const tabEl = document.getElementById('tab-cartao')
+        if (!el) return
+        const expenses = DataStore.getExpensesByMonth(month, bank).filter(e => e.isCredit && e.sector === 'gasto')
+
+        // Pagamento da fatura na conta corrente (valor real saído da conta)
+        const faturaTotal = DataStore.getExpensesByMonth(month, bank)
+            .filter(e => !e.isCredit && e.category === 'cartao' && e.sector === 'gasto')
+            .reduce((s, e) => s + e.amount, 0)
+
+        // Mostra/esconde a aba conforme há dados de cartão ou pagamento de fatura
+        if (tabEl) tabEl.style.display = (expenses.length || faturaTotal > 0) ? '' : 'none'
+
+        if (!expenses.length) {
+            el.innerHTML = ''
+            return
+        }
+
+        const total = expenses.reduce((s, e) => s + e.amount, 0)
+
+        // Agrupa por destinatário para o preview
+        const groups = {}
+        expenses.forEach(e => {
+            const k = Classifier._normalizeKey(e.name)
+            if (!groups[k]) groups[k] = { name: DataStore.getAlias(k) || e.name, total: 0 }
+            groups[k].total += e.amount
+        })
+        const topGroups = Object.values(groups).sort((a, b) => b.total - a.total).slice(0, 3)
+
+        const diff = faturaTotal > 0 && Math.abs(faturaTotal - total) > 0.01
+        const warningHtml = diff ? `
+            <div style="margin-top:10px;padding:8px 10px;background:var(--amber-bg);border-radius:8px;font-size:11px;color:var(--amber-text);line-height:1.5">
+                ⚠ Fatura paga: <strong>${this.fmt(faturaTotal)}</strong> · Detalhado: <strong>${this.fmt(total)}</strong><br>
+                A diferença de <strong>${this.fmt(Math.abs(faturaTotal - total))}</strong> pode ser de parcelas ou lançamentos ainda não disponíveis no sync.
+            </div>` : ''
+
+        el.innerHTML = `
+        <div class="card" style="cursor:pointer" onclick="app.showCreditCardDetail('${month}','${bank || ''}')">
+            <div class="card-header">
+                <span class="card-title">💳 Cartão de Crédito</span>
+                <span style="font-size:11px;color:var(--text3)">${expenses.length} compra${expenses.length > 1 ? 's' : ''}</span>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <span style="font-size:13px;color:var(--text2)">Total detalhado</span>
+                <span style="font-size:22px;font-weight:800;color:var(--text)">${this.fmt(total)}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+                ${topGroups.map(g => `
+                <div style="display:flex;justify-content:space-between;font-size:12px">
+                    <span style="color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:65%">${this.esc(g.name)}</span>
+                    <span style="color:var(--text);font-weight:600">${this.fmt(g.total)}</span>
+                </div>`).join('')}
+                ${topGroups.length < Object.values(groups).length ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">+ ${Object.values(groups).length - topGroups.length} destinos • Ver todos →</div>` : `<div style="font-size:11px;color:var(--text3);margin-top:2px">Toque para ver detalhes →</div>`}
+            </div>
+            ${warningHtml}
+        </div>`
+    }
+
     static renderAnalysis(month, bank) {
         const data = DataStore.load()
         const months = DataStore.getRecentMonths()
         const inc = DataStore.getIncomesByMonth(month, bank).reduce((s, i) => s + i.amount, 0)
-        const expenses = DataStore.getExpensesByMonth(month, bank)
+        const allExpenses = DataStore.getExpensesByMonth(month, bank)
+        const expenses = allExpenses.filter(e => !e.isCredit)
         const gasto = expenses.filter(e => Classifier.sectorOf(e) === 'gasto').reduce((s, e) => s + e.amount, 0)
         const invest = Math.max(0, expenses.filter(e => Classifier.sectorOf(e) === 'investido' && !e.resgate).reduce((s, e) => s + e.amount, 0)
             - expenses.filter(e => Classifier.sectorOf(e) === 'investido' && e.resgate).reduce((s, e) => s + e.amount, 0))
-        const hasData = months.some(m => data.incomes.some(i => i.month === m && i.bank === bank) || data.expenses.some(e => e.month === m && e.bank === bank))
+        const hasData = months.some(m => data.incomes.some(i => i.month === m && i.bank === bank) || data.expenses.some(e => e.month === m && e.bank === bank && !e.isCredit))
 
         if (!hasData) {
             document.getElementById('sec-analise').innerHTML = `<div class="card"><div class="empty"><span class="empty-icon">⌁</span>Cadastre rendas e gastos para ver a análise.</div></div>`
@@ -684,7 +750,7 @@ ${isFixo ? `<span class="badge" style="background:var(--blue-bg);color:var(--blu
         }
 
         const cats = {}
-        DataStore.getExpensesByMonth(month, bank).forEach(e => { cats[e.category] = (cats[e.category] || 0) + e.amount })
+        DataStore.getExpensesByMonth(month, bank).filter(e => !e.isCredit).forEach(e => { cats[e.category] = (cats[e.category] || 0) + e.amount })
         const pieEntries = Object.entries(cats).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])
         const pieEl = document.getElementById('pieChart')
         if (pieEl && pieEntries.length > 0) {
