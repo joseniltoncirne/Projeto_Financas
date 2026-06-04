@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "build": "vite build && mkdir -p dist/src && cp -r src/js dist/src/js",
     "preview": "vite preview --host 0.0.0.0"
   },
   "devDependencies": {
