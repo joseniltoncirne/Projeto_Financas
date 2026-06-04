@@ -596,7 +596,20 @@ ${isFixo ? `<span class="badge" style="background:var(--blue-bg);color:var(--blu
         if (tabEl) tabEl.style.display = (expenses.length || faturaTotal > 0) ? '' : 'none'
 
         if (!expenses.length) {
-            el.innerHTML = ''
+            // Tem fatura mas sem compras detalhadas — mostra aviso simples
+            el.innerHTML = `
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">💳 Cartão de Crédito</span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                    <span style="font-size:13px;color:var(--text2)">Fatura paga</span>
+                    <span style="font-size:22px;font-weight:800;color:var(--text)">${this.fmt(faturaTotal)}</span>
+                </div>
+                <div style="padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text3);line-height:1.5">
+                    As compras individuais ainda não foram disponibilizadas pela Pluggy. Elas devem aparecer no próximo sync quando o ciclo fechar.
+                </div>
+            </div>`
             return
         }
 

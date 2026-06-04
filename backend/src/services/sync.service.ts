@@ -148,15 +148,13 @@ function mapPluggyCategory(t: PluggyTransaction): string | null {
   return null
 }
 
-// Filtra apenas pagamentos recebidos pelo cartão — dinheiro que ENTROU no cartão
-// para quitar a fatura. Esses não são gastos, são o oposto.
+// Para contas de cartão, CREDIT = pagamento/crédito (não é compra), DEBIT = compra.
+// Além disso, alguns bancos (Nubank) enviam DEBITs com nomes ambíguos que são pagamentos.
 function isCreditCardPayment(t: PluggyTransaction): boolean {
+  if (t.type === 'CREDIT') return true
   const desc = (t.description || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-  const paymentKw = [
-    'pagamento recebido', 'pagamento de fatura', 'pagamento fatura',
-    'saldo adicionado', 'pagamento automatico',
-  ]
-  return paymentKw.some(kw => desc.includes(kw))
+  const debitPaymentKw = ['saldo adicionado']
+  return debitPaymentKw.some(kw => desc.includes(kw))
 }
 
 export const SyncService = {

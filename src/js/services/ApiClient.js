@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 class ApiClient {
-    static BASE = `http://${window.location.hostname}:3333`
+    static BASE = (typeof __API_BASE__ !== 'undefined' && __API_BASE__) ? __API_BASE__ : `http://${window.location.hostname}:3333`
     static _accessToken = null
     static _refreshToken = null
 

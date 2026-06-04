@@ -54,18 +54,24 @@ export async function fixedExpenseRoutes(app: FastifyInstance) {
     const items = await prisma.fixedExpense.findMany({
       where: {
         userId,
-        ...(month ? {
-          OR: [
-            { startMonth: { lte: month } },
-            { startMonth: null, createdAt: { lt: createdBefore } },
-          ],
-        } : {}),
-        OR: [
+        AND: [
+          // Filtro de início: startMonth <= month OU (sem startMonth E criada antes do fim do mês)
+          ...(month ? [{
+            OR: [
+              { startMonth: { lte: month } },
+              { startMonth: null, createdAt: { lt: createdBefore } },
+            ],
+          }] : []),
+          // Filtro de estado: ativa com endMonth válido OU inativa com pagamento no mês
           {
-            active: true,
-            ...(month ? { OR: [{ endMonth: null }, { endMonth: { gte: month } }] } : {}),
+            OR: [
+              {
+                active: true,
+                ...(month ? { OR: [{ endMonth: null }, { endMonth: { gte: month } }] } : {}),
+              },
+              ...(month ? [{ active: false, payments: { some: { month } } }] : []),
+            ],
           },
-          ...(month ? [{ active: false, payments: { some: { month } } }] : []),
         ],
       },
       include: { payments: true },

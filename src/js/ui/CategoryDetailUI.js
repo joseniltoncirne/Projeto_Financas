@@ -320,7 +320,7 @@ Object.assign(FinanceApp.prototype, {
         document.getElementById('detail-title').innerHTML =
             `💳 Cartão de Crédito — ${monthName}`
 
-        const { mkGroupedList } = this._mkCategoryDetailHelpers('cartao_credito', bank || '')
+        const { mkGroupedList } = this._mkCategoryDetailHelpers('outros', bank || '')
 
         let html = ''
         if (!items.length) {
